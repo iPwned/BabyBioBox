@@ -5,6 +5,8 @@
  *
  *Copyright (c) 2015, Christopher Betancourt
 */
+
+/*going to make use of the fact that sqlite will alias the id columns to rowid*/
 create table event_types(
 	id		integer	not null,
 	name	varchar(256) not null,
@@ -17,3 +19,12 @@ create table event_log(
 	event_time datetime not null,
 	primary key(id)
 );
+
+create table users(
+	user_email	varchar(256) not null,
+	salt		char(25) not null,
+	pw_hash		char(31) not null,
+	blessed		boolean not null default false,
+	primary key(user_email)
+);
+

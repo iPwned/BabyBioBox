@@ -1,0 +1,13 @@
+<h2>Login</h2>
+
+<form action="[% login_url %]" method="post">
+	<dl>
+		<dt>Username:</dt>
+		<dd><input type="text" name="uname"/></dd>
+		<dt>Password:</dt>
+		<dd><input type="password" name="passwd" /></dd>
+		<dd><input type="submit" value="Login" /></dd>
+	<dl>
+	<br>
+	<a href="[% creation_url %]">Create Account</a>
+</form>

@@ -2,10 +2,10 @@
 
 <form action="[% login_url %]" method="post">
 	<dl>
-		<dt>Username:</dt>
-		<dd><input type="text" name="uname"/></dd>
+		<dt>Email:</dt>
+		<dd><input type="text" name="email"/></dd>
 		<dt>Password:</dt>
-		<dd><input type="password" name="passwd" /></dd>
+		<dd><input type="password" name="password" /></dd>
 		<dd><input type="submit" value="Login" /></dd>
 	<dl>
 	<br>

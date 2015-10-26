@@ -1,0 +1,16 @@
+<script type="text/javascript" src="[% request.uri_base %]/javascripts/create_account.js"></script>
+
+<h2>Create Account</h2>
+
+Please note: all fields are required.  After submitting your account creation request, site admin will be alerted and approve/deny the request.<br/>
+<form action="[% creation_url %]" method="post" id="accountForm" onSubmit="return validateForm();">
+	<dl>
+		<dt>Email address</dt>
+		<dd><input type="text" name="email" id="email"/></dd>
+		<dt>Password</dt>
+		<dd><input type="password" name="password" id="password"/></dd>
+		<dt>Confirm Password</dt>
+		<dd><input type="password" name="confirm_pass" id="confirm_pass"/></dd>
+		<dd><input type="submit" /></dd>
+	</dl>
+</form>

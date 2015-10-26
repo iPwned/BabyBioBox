@@ -56,9 +56,31 @@ any ['get','post']=> '/login' => sub {
 	if(request->method() eq 'POST')
 	{
 		my $dbh=db_open();
-		#do login things
+		my $query='select salt, pw_hash,blessed from users where user_email=?';
+		my $sth=$dbh->prepare($query);
+		$sth->bind_param(1,params->{email},SQL_VARCHAR);
+		$sth->execute();
+		my $results=$sth->fetch();
+		$sth->finish();
 		$dbh->disconnect();
-		session 'logged_in'=>1; #replace with real login logic
+		#do login things
+		unless($$results[0] && $$results[2] ne 'false')
+		{
+			set_message('Unable to log in with this user name and password combination.<br/>'.
+				'Please contact your admin for assitance');
+			return redirect '/login';
+		}
+		my $bcrypt=Digest->new('Bcrypt');
+		$bcrypt->cost(BCRYPT_COST);
+		$bcrypt->salt(decode_base64($$results[0]));
+		$bcrypt->add(params->{password});
+		if($bcrypt->b64digest ne $$results[1])
+		{
+			set_message('Unable to log in with this user name and password combination.<br/>'.
+				'Please contact your admin for assitance');
+			return redirect '/login';
+		}
+		session 'logged_in'=>1; 
 		return redirect '/';
 	}
 	

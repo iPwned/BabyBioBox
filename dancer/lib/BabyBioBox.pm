@@ -40,6 +40,7 @@ hook before_template => sub{
 
 	$tokens->{'login_url'}=uri_for('/login');
 	$tokens->{'creation_url'}=uri_for('/create_account');
+	$tokens->{'user_admin_url'}=uri_for('/admin/users');
 };
 
 get '/' => sub {
@@ -56,7 +57,7 @@ any ['get','post']=> '/login' => sub {
 	if(request->method() eq 'POST')
 	{
 		my $dbh=db_open();
-		my $query='select salt, pw_hash,blessed from users where user_email=?';
+		my $query='select salt, pw_hash,blessed,admin from users where user_email=?';
 		my $sth=$dbh->prepare($query);
 		$sth->bind_param(1,params->{email},SQL_VARCHAR);
 		$sth->execute();
@@ -81,6 +82,7 @@ any ['get','post']=> '/login' => sub {
 			return redirect '/login';
 		}
 		session 'logged_in'=>1; 
+		session 'is_admin'=>($$results[3] eq 'true'?1:0);
 		return redirect '/';
 	}
 	
@@ -147,6 +149,46 @@ any ['get','post']=>'/create_account'=>sub{
 	}
 	template 'create',{
 		'message'=>get_message()
+	};
+};
+
+any ['get','post']=>'/admin/users' => sub{
+	unless(session('logged_in') && session('is_admin'))
+	{
+		send_error('Access Denied',403);
+	}
+
+	my $dbh=db_open();
+	my $query;
+	my $sth;
+
+	if(request->method() eq 'POST')
+	{
+		$query='update users set blessed=?, admin=? where user_email=?';
+		$sth=$dbh->prepare($query);
+		for(my $i=0;$i<params->{"user_count"};++$i)
+		{
+			next unless(defined params->{"email$i"});
+			my $blessed=defined params->{"blessed$i"} && params->{"blessed$i"} eq 'true'?'true':'false';
+			my $admin=defined params->{"admin$i"} && params->{"admin$i"} eq 'true'?'true':'false';
+			$sth->bind_param(1,$blessed,SQL_BOOLEAN);
+			$sth->bind_param(2,$admin,SQL_BOOLEAN);
+			$sth->bind_param(3,params->{"email$i"},SQL_VARCHAR);
+			$sth->execute();
+		}
+		$sth->finish();
+	}
+	$query="select user_email, blessed, admin from users";
+	$sth=$dbh->prepare($query);
+	$sth->execute();
+	my $hashref=$sth->fetchall_hashref('user_email');
+	$sth->finish();
+
+	$dbh->disconnect();
+
+	template 'admin/users',{
+		'message'=>get_message(),
+		'users'=>$hashref
 	};
 };
 

@@ -1,0 +1,18 @@
+[% IF users.size %]
+	[% count=0 %]
+	<form method="post" action="[% user_admin_url %]">
+	<table>
+		<tr><th>Email</th><th>Authorized</th><th>Admin</th></tr>
+	[% FOREACH user IN users.keys %]
+		<tr>
+		<td>[% users.$user.user_email %] <input type="hidden" name="email[% count %]" value="[% users.$user.user_email %]" /></td>
+		<td><input type="checkbox" [% IF users.$user.blessed == 'true' %]checked[% END %] name="blessed[% count %]" value="true"/></td>
+		<td><input type="checkbox" [% IF users.$user.admin == 'true' %]checked[% END %] name="admin[% count %]" value="true"/></td>
+		</tr>
+		[% count=count+1 %]
+	[% END %]
+	</table><br/>
+	<input type="hidden" name="user_count" value="[% count %]" />
+	<input type="submit" />
+	</form>
+[% END %]

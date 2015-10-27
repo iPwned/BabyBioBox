@@ -25,6 +25,7 @@ create table users(
 	salt		char(25) not null,
 	pw_hash		char(31) not null,
 	blessed		boolean not null default false,
+	admin		boolean not null default false,
 	primary key(user_email)
 );
 

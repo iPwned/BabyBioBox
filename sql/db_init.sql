@@ -17,6 +17,7 @@ create table event_log(
 	id		integer not null,
 	event_type integer not null,
 	event_time datetime not null,
+	event_source varchar(256),
 	primary key(id)
 );
 
@@ -29,3 +30,4 @@ create table users(
 	primary key(user_email)
 );
 
+insert into event_types (name) values ("Wet Diaper"),("Dirty Diaper"),("Sleep"),("Wake"),("Bottle Feeding");

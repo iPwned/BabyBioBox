@@ -41,6 +41,7 @@ hook before_template => sub{
 	$tokens->{'login_url'}=uri_for('/login');
 	$tokens->{'creation_url'}=uri_for('/create_account');
 	$tokens->{'user_admin_url'}=uri_for('/admin/users');
+	$tokens->{'data_log_url'}=uri_for('/data/log');
 };
 
 get '/' => sub {
@@ -59,7 +60,7 @@ any ['get','post']=> '/login' => sub {
 		my $dbh=db_open();
 		my $query='select salt, pw_hash,blessed,admin from users where user_email=?';
 		my $sth=$dbh->prepare($query);
-		$sth->bind_param(1,params->{email},SQL_VARCHAR);
+		$sth->bind_param(1,params->{'email'},SQL_VARCHAR);
 		$sth->execute();
 		my $results=$sth->fetch();
 		$sth->finish();
@@ -74,7 +75,7 @@ any ['get','post']=> '/login' => sub {
 		my $bcrypt=Digest->new('Bcrypt');
 		$bcrypt->cost(BCRYPT_COST);
 		$bcrypt->salt(decode_base64($$results[0]));
-		$bcrypt->add(params->{password});
+		$bcrypt->add(params->{'password'});
 		if($bcrypt->b64digest ne $$results[1])
 		{
 			set_message('Unable to log in with this user name and password combination.<br/>'.
@@ -83,6 +84,7 @@ any ['get','post']=> '/login' => sub {
 		}
 		session 'logged_in'=>1; 
 		session 'is_admin'=>($$results[3] eq 'true'?1:0);
+		session 'user'=>params->{'email'};
 		return redirect '/';
 	}
 	
@@ -114,7 +116,7 @@ any ['get','post']=>'/create_account'=>sub{
 		#check for existance of account.
 		my $query='select count(*) from users where user_email=?';
 		my $sth=$dbh->prepare($query);
-		$sth->bind_param(1,params->{email},SQL_VARCHAR);
+		$sth->bind_param(1,params->{'email'},SQL_VARCHAR);
 		$sth->execute();
 		my $count=$sth->fetch();
 		$sth->finish();
@@ -132,13 +134,13 @@ any ['get','post']=>'/create_account'=>sub{
 		#scrubbing of inputs should really be done prior to this.
 		$bcrypt->cost(BCRYPT_COST);
 		$bcrypt->salt($salt);
-		$bcrypt->add(params->{password});
+		$bcrypt->add(params->{'password'});
 		#now, get the base64 versions that will go into the db.
 		$salt=encode_base64($salt);
 		my $b64_pass=$bcrypt->b64digest;
 		$query='insert into users (user_email,salt,pw_hash) values (?,?,?)';
 		$sth=$dbh->prepare($query);
-		$sth->bind_param(1,params->{email},SQL_VARCHAR);
+		$sth->bind_param(1,params->{'email'},SQL_VARCHAR);
 		$sth->bind_param(2,$salt,SQL_CHAR);
 		$sth->bind_param(3,$b64_pass,SQL_CHAR);
 		$sth->execute();#should check to make sure this succeedes.
@@ -192,4 +194,45 @@ any ['get','post']=>'/admin/users' => sub{
 	};
 };
 
+any ['get','post']=>'data/log'=>sub {
+	if(request->method() eq 'POST')
+	{
+		#we're going to simply trust the inputs we get.  Definitely not safe for general consumption.
+		my $timeStamp=params->{'timestamp'};
+		my $source=params->{'source'};
+		my $paramRef=params;
+
+		return "timeStamp=$timeStamp\nSource=$source\n" unless($timeStamp && $source);
+		
+		my $dbh=db_open();
+		my $query="insert into event_log (event_type,event_time,event_source) values (?,?,?)";
+		my $sth=$dbh->prepare($query);
+		$sth->bind_param(2,$timeStamp,SQL_DATETIME);
+		$sth->bind_param(3,$source,SQL_VARCHAR);
+
+		foreach my $param(keys(%$paramRef))
+		{
+			next unless($param=~m/event\d+/);
+			$sth->bind_param(1,$paramRef->{$param},SQL_INTEGER);
+			$sth->execute();
+		}
+		$sth->finish();
+		$dbh->disconnect();
+		return "value logged $timeStamp $source \n";
+	}
+	return redirect '/' unless (session('logged_in'));
+	my $dbh=db_open();
+	my $query="select name, id from event_types order by id";
+	my $sth=$dbh->prepare($query);
+	$sth->execute();
+	my $hashref=$sth->fetchall_hashref('id');#this should probably be an array instead.
+	$sth->finish();
+	$dbh->disconnect();
+	template 'data/log',{
+		'message'=>get_message(),
+		'source'=>session('user'),
+		'events'=>$hashref
+	};
+
+};
 true;

@@ -49,23 +49,21 @@ void setup()
 void loop()
 {
 	digitalWrite(ARD_SEND_LED,HIGH);
-	digitalWrite(ARD_STAT_RED,HIGH);
-	digitalWrite(ARD_STAT_GREEN,HIGH);
-	digitalWrite(ARD_STAT_BLUE,HIGH);
+	setRGB_led((unsigned char) 255, (unsigned char) 255, (unsigned char)255);
 	delay(900);
-	digitalWrite(ARD_STAT_RED,HIGH);
-	digitalWrite(ARD_STAT_GREEN,LOW);
-	digitalWrite(ARD_STAT_BLUE,LOW);
+	setRGB_led((unsigned char) 255, (unsigned char) 0, (unsigned char) 0);
 	delay(900);
-	digitalWrite(ARD_STAT_RED,LOW);
-	digitalWrite(ARD_STAT_GREEN,HIGH);
-	digitalWrite(ARD_STAT_BLUE,LOW);
+	setRGB_led((unsigned char) 0, (unsigned char) 255, (unsigned char) 0);
 	delay(900);
-	digitalWrite(ARD_STAT_RED,LOW);
-	digitalWrite(ARD_STAT_GREEN,LOW);
-	digitalWrite(ARD_STAT_BLUE,HIGH);
+	setRGB_led((unsigned char) 0, (unsigned char) 0, (unsigned char) 255);
 	set_mcp_all(state);
 	state=~state;
+	//clear the interupt for testing purposes.
+	Wire.beginTransmission(MCP_ADDR);
+	Wire.write(0x11);
+	Wire.endTransmission();
+	Wire.requestFrom(MCP_ADDR,1);
+	Wire.read();
 	delay(900);
 }
 
@@ -82,9 +80,9 @@ void init_mcp()
 	Wire.write(0x00);  //0x06 - DEFVALA
 	Wire.write(0x00);  //0x07 - DEFVALB  -	Default state is unpressed buttons
 	Wire.write(0x00);  //0x08 - INTCONA
-	Wire.write(0x00);  //0x09 - INTCONB
-	Wire.write(0x00);  //0x0A - ICONN
-	Wire.write(0x00);  //0x0B - ICONN
+	Wire.write(0x3F);  //0x09 - INTCONB
+	Wire.write(0x02);  //0x0A - ICONN
+	Wire.write(0x02);  //0x0B - ICONN
 	Wire.write(0x00);  //0x0C - GPPUA
 	Wire.write(0x3F);  //0x0D - GPPUB
 	digitalWrite(ARD_SEND_LED,LOW);
@@ -104,7 +102,8 @@ void set_mcp_pin(unsigned char pin, int state)
 	//set the state and write it out
 Serial.print("Initial set state: ");
 Serial.println(setState);
-	setState=(char)0xF & (state<<pin) & setState;
+	setState=((unsigned char)0xFE << pin |(unsigned char)0xFE>>sizeof(unsigned char)-pin)
+		 & (setState|state<<pin);
 Serial.print("Modified set state: ");
 Serial.println(setState);
 	Wire.beginTransmission(MCP_ADDR);
@@ -126,4 +125,12 @@ void set_mcp_all(int state)
 		Wire.write(0x00);
 	}
 	Wire.endTransmission();
+}
+
+void setRGB_led(unsigned char red, unsigned char green, unsigned char blue)
+{
+
+	analogWrite(ARD_STAT_RED,red);
+	analogWrite(ARD_STAT_GREEN,green);
+	analogWrite(ARD_STAT_BLUE,blue);
 }

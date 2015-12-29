@@ -19,14 +19,19 @@
 #define MCP_SLEEP 3
 #define MCP_WAKE 4
 #define MCP_SEND 5
-
 #define MCP_ADDR 0x20
 
+#define S_PIN_MASK 0xFE
+
+typedef unsigned char uchar;
+
 void init_mcp();
-void set_mcp_pin(unsigned char pin, int state);
+void set_mcp_pin(uchar pin, int state);
 void set_mcp_all(int state);
 
 int state=LOW;
+uchar setState=(uchar)0;
+uchar animState=(uchar)0;
 
 void setup()
 {
@@ -47,21 +52,23 @@ void setup()
 void loop()
 {
 	digitalWrite(ARD_SEND_LED,HIGH);
-	setRGB_led((unsigned char) 255, (unsigned char) 255, (unsigned char)255);
+	setRGB_led((uchar) 255, (uchar) 255, (uchar)255);
 	delay(300);
-	setRGB_led((unsigned char) 255, (unsigned char) 0, (unsigned char) 0);
+	setRGB_led((uchar) 255, (uchar) 0, (uchar) 0);
 	delay(300);
-	setRGB_led((unsigned char) 0, (unsigned char) 255, (unsigned char) 0);
+	setRGB_led((uchar) 0, (uchar) 255, (uchar) 0);
 	delay(300);
-	setRGB_led((unsigned char) 0, (unsigned char) 0, (unsigned char) 255);
+	setRGB_led((uchar) 0, (uchar) 0, (uchar) 255);
 	set_mcp_pin(0,state);
 	state=~state;
 	//clear the interupt for testing purposes.
+	/* actually, don't I want to see it high for a bit
 	Wire.beginTransmission(MCP_ADDR);
 	Wire.write(0x11);
 	Wire.endTransmission();
 	Wire.requestFrom(MCP_ADDR,1);
 	Wire.read();
+	*/
 	delay(300);
 }
 
@@ -93,30 +100,21 @@ void init_mcp()
 
 }
 
-void set_mcp_pin(unsigned char pin, int state)
+void set_mcp_pin(uchar pin, int state)
 {
-	unsigned char setState=0;
-	//get the current state.
-	Wire.beginTransmission(MCP_ADDR);
-	Wire.write(0x15); //set the address to GPIOB
-	Wire.endTransmission();
-	Wire.requestFrom(MCP_ADDR,1);
-	setState=(unsigned char)Wire.read();
+	uchar lSetState=setState;
 	
 	//set the state and write it out
 Serial.print("Initial set state: ");
-Serial.println(setState);
-Serial.print("Pin: ");
-Serial.println(sizeof(unsigned char)-pin);
-	// setState=((unsigned char)0xFE << pin |((unsigned char)0xFE>>sizeof(unsigned char)-pin));
-	// setState=(unsigned char)0xFE << pin | (unsigned char)0xFE >> sizeof(unsigned char)-pin;
-	setState=(unsigned char)0xFE >> sizeof(unsigned char)*8-pin;
+Serial.println(lSetState);
+	lSetState=((uchar)S_PIN_MASK << pin | (uchar)S_PIN_MASK >> sizeof(uchar)*8-pin) & lSetState|state<<pin;
 Serial.print("Modified set state: ");
-Serial.println(setState);
+Serial.println(lSetState);
 	Wire.beginTransmission(MCP_ADDR);
 	Wire.write(0x12);
-	Wire.write(setState);
+	Wire.write(lSetState);
 	Wire.endTransmission();
+	setState=lSetState;
 }
 
 void set_mcp_all(int state)
@@ -134,10 +132,17 @@ void set_mcp_all(int state)
 	Wire.endTransmission();
 }
 
-void setRGB_led(unsigned char red, unsigned char green, unsigned char blue)
+void setRGB_led(uchar red, uchar green, uchar blue)
 {
 
 	analogWrite(ARD_STAT_RED,red);
 	analogWrite(ARD_STAT_GREEN,green);
 	analogWrite(ARD_STAT_BLUE,blue);
+}
+
+void set_anim_state(uchar pin, int state)
+{
+	uchar lAnimState=animState;
+	lAnimState=((uchar)S_PIN_MASK<<pin | (uchar)S_PIN_MASK>>sizeof(uchar)*8-pin)&lAnimState|state<<pin;
+	animState=lAnimState;
 }

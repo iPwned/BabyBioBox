@@ -40,23 +40,21 @@ void setup()
 	Serial.begin(9600);
 	Serial1.begin(9600);
 	Wire.begin();
-	digitalWrite(ARD_SEND_LED,HIGH);
-	delay(2000);
 	init_mcp();
-	delay(2000);
+	//register interrupts here
 }
 
 void loop()
 {
 	digitalWrite(ARD_SEND_LED,HIGH);
 	setRGB_led((unsigned char) 255, (unsigned char) 255, (unsigned char)255);
-	delay(900);
+	delay(300);
 	setRGB_led((unsigned char) 255, (unsigned char) 0, (unsigned char) 0);
-	delay(900);
+	delay(300);
 	setRGB_led((unsigned char) 0, (unsigned char) 255, (unsigned char) 0);
-	delay(900);
+	delay(300);
 	setRGB_led((unsigned char) 0, (unsigned char) 0, (unsigned char) 255);
-	set_mcp_all(state);
+	set_mcp_pin(0,state);
 	state=~state;
 	//clear the interupt for testing purposes.
 	Wire.beginTransmission(MCP_ADDR);
@@ -64,7 +62,7 @@ void loop()
 	Wire.endTransmission();
 	Wire.requestFrom(MCP_ADDR,1);
 	Wire.read();
-	delay(900);
+	delay(300);
 }
 
 void init_mcp()
@@ -85,8 +83,14 @@ void init_mcp()
 	Wire.write(0x02);  //0x0B - ICONN
 	Wire.write(0x00);  //0x0C - GPPUA
 	Wire.write(0x3F);  //0x0D - GPPUB
-	digitalWrite(ARD_SEND_LED,LOW);
 	Wire.endTransmission();
+	//clear out any interrupts that may be showing.
+	Wire.beginTransmission(MCP_ADDR);
+	Wire.write(0x11);  //0x11 - INTCAPB
+	Wire.endTransmission();
+	Wire.requestFrom(MCP_ADDR,1);
+	Wire.read();
+
 }
 
 void set_mcp_pin(unsigned char pin, int state)
@@ -94,7 +98,7 @@ void set_mcp_pin(unsigned char pin, int state)
 	unsigned char setState=0;
 	//get the current state.
 	Wire.beginTransmission(MCP_ADDR);
-	Wire.write(0x12); //set the address to GPIOA
+	Wire.write(0x15); //set the address to GPIOB
 	Wire.endTransmission();
 	Wire.requestFrom(MCP_ADDR,1);
 	setState=(unsigned char)Wire.read();
@@ -102,8 +106,11 @@ void set_mcp_pin(unsigned char pin, int state)
 	//set the state and write it out
 Serial.print("Initial set state: ");
 Serial.println(setState);
-	setState=((unsigned char)0xFE << pin |(unsigned char)0xFE>>sizeof(unsigned char)-pin)
-		 & (setState|state<<pin);
+Serial.print("Pin: ");
+Serial.println(sizeof(unsigned char)-pin);
+	// setState=((unsigned char)0xFE << pin |((unsigned char)0xFE>>sizeof(unsigned char)-pin));
+	// setState=(unsigned char)0xFE << pin | (unsigned char)0xFE >> sizeof(unsigned char)-pin;
+	setState=(unsigned char)0xFE >> sizeof(unsigned char)*8-pin;
 Serial.print("Modified set state: ");
 Serial.println(setState);
 	Wire.beginTransmission(MCP_ADDR);

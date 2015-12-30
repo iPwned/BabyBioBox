@@ -20,18 +20,36 @@
 #define MCP_WAKE 4
 #define MCP_SEND 5
 #define MCP_ADDR 0x20
+#define MCP_INT_PIN 7
+/*Check schematic.  Valid options are 0-3 and 7*/
 
 #define S_PIN_MASK 0xFE
 
 typedef unsigned char uchar;
 
+typedef struct _ledValues
+{
+	uchar wetButton;
+	uchar dirtyButton;
+	uchar feedButton;
+	uchar sleepButton;
+	uchar wakeButton;
+	uchar sendButton;
+	uchar statusRed;
+	uchar statusGreen;
+	uchar statusBlue;
+} ledValues;
+
 void init_mcp();
 void set_mcp_pin(uchar pin, int state);
 void set_mcp_all(int state);
 
-int state=LOW;
-uchar setState=(uchar)0;
-uchar animState=(uchar)0;
+int state=HIGH;
+uchar testPin=0;
+uchar setState=0;
+uchar animState=0;
+volatile uchar readNeeded=0;
+ledValues currLightVals;
 
 void setup()
 {
@@ -42,25 +60,43 @@ void setup()
 	pinMode(ARD_STAT_BLUE,OUTPUT);
 	pinMode(ARD_SEND_LED,OUTPUT);
 
+	currLightVals.wetButton=0;
+	currLightVals.dirtyButton=0;
+	currLightVals.feedButton=0;
+	currLightVals.sleepButton=0;
+	currLightVals.wakeButton=0;
+	currLightVals.sendButton=0;
+	currLightVals.statusRed=0;
+	currLightVals.statusGreen=0;
+	currLightVals.statusBlue=0;
+
 	Serial.begin(9600);
 	Serial1.begin(9600);
 	Wire.begin();
 	init_mcp();
-	//register interrupts here
+	attachInterrupt(digitalPinToInterrupt(MCP_INT_PIN),keypressInterrupt,RISING);
 }
 
 void loop()
 {
 	digitalWrite(ARD_SEND_LED,HIGH);
-	setRGB_led((uchar) 255, (uchar) 255, (uchar)255);
+	setRGB_led(255, 255, 255);
 	delay(300);
-	setRGB_led((uchar) 255, (uchar) 0, (uchar) 0);
+	setRGB_led(255, 0, 0);
 	delay(300);
-	setRGB_led((uchar) 0, (uchar) 255, (uchar) 0);
+	setRGB_led(0, 255, 0);
 	delay(300);
-	setRGB_led((uchar) 0, (uchar) 0, (uchar) 255);
-	set_mcp_pin(0,state);
-	state=~state;
+	setRGB_led(0, 0, 255);
+
+	set_mcp_pin(testPin,state);
+	testPin=(testPin+1)%8;
+	if(testPin==0) state= ~state;
+
+	if(readNeeded)
+	{
+		//debounce keys here?
+		readNeeded=0;
+	}
 	//clear the interupt for testing purposes.
 	/* actually, don't I want to see it high for a bit
 	Wire.beginTransmission(MCP_ADDR);
@@ -107,7 +143,7 @@ void set_mcp_pin(uchar pin, int state)
 	//set the state and write it out
 Serial.print("Initial set state: ");
 Serial.println(lSetState);
-	lSetState=((uchar)S_PIN_MASK << pin | (uchar)S_PIN_MASK >> sizeof(uchar)*8-pin) & lSetState|state<<pin;
+	lSetState=(S_PIN_MASK << pin | S_PIN_MASK >> sizeof(uchar)*8-pin) & lSetState|state<<pin;
 Serial.print("Modified set state: ");
 Serial.println(lSetState);
 	Wire.beginTransmission(MCP_ADDR);
@@ -132,6 +168,17 @@ void set_mcp_all(int state)
 	Wire.endTransmission();
 }
 
+uchar read_mcp_port()
+{
+	uchar retVal=0;
+	Wire.beginTransmission(MCP_ADDR);
+	Wire.write(0x11);  //0x11 - INTCAPB
+	Wire.endTransmission();
+	Wire.requestFrom(MCP_ADDR,1);
+	retVal=Wire.read();//may need a cast here.
+	return retVal;
+}
+
 void setRGB_led(uchar red, uchar green, uchar blue)
 {
 
@@ -143,6 +190,11 @@ void setRGB_led(uchar red, uchar green, uchar blue)
 void set_anim_state(uchar pin, int state)
 {
 	uchar lAnimState=animState;
-	lAnimState=((uchar)S_PIN_MASK<<pin | (uchar)S_PIN_MASK>>sizeof(uchar)*8-pin)&lAnimState|state<<pin;
+	lAnimState=(S_PIN_MASK<<pin | S_PIN_MASK>>sizeof(uchar)*8-pin)&lAnimState|state<<pin;
 	animState=lAnimState;
+}
+
+void keypressInterrupt()
+{
+	readNeeded=1;
 }

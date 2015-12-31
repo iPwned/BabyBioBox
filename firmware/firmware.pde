@@ -58,6 +58,7 @@ void setup()
 	pinMode(ARD_STAT_GREEN,OUTPUT);
 	pinMode(ARD_STAT_BLUE,OUTPUT);
 	pinMode(ARD_SEND_LED,OUTPUT);
+	pinMode(MCP_INT_PIN,INPUT);
 
 	currLightVals.wetButton=0;
 	currLightVals.dirtyButton=0;
@@ -78,7 +79,6 @@ void setup()
 
 void loop()
 {
-	digitalWrite(ARD_SEND_LED,HIGH);
 	setRGB_led(255, 255, 255);
 	delay(300);
 	setRGB_led(255, 0, 0);
@@ -95,15 +95,11 @@ void loop()
 	{
 		//debounce keys here?
 		readNeeded=0;
+		read_mcp_port();
+	digitalWrite(ARD_SEND_LED,readNeeded);
 	}
-	//clear the interupt for testing purposes.
-	/* actually, don't I want to see it high for a bit
-	Wire.beginTransmission(MCP_ADDR);
-	Wire.write(0x11);
-	Wire.endTransmission();
-	Wire.requestFrom(MCP_ADDR,1);
-	Wire.read();
-	*/
+	readNeeded=digitalRead(MCP_INT_PIN);
+	digitalWrite(ARD_SEND_LED,readNeeded);
 	delay(300);
 }
 
@@ -140,11 +136,7 @@ void set_mcp_pin(unsigned char pin, int state)
 	unsigned char lSetState=setState;
 	
 	//set the state and write it out
-Serial.print("Initial set state: ");
-Serial.println(lSetState);
 	lSetState=(S_PIN_MASK << pin | S_PIN_MASK >> sizeof(unsigned char)*8-pin) & lSetState|state<<pin;
-Serial.print("Modified set state: ");
-Serial.println(lSetState);
 	Wire.beginTransmission(MCP_ADDR);
 	Wire.write(0x12);
 	Wire.write(lSetState);
@@ -196,4 +188,5 @@ void set_anim_state(unsigned char pin, int state)
 void keypressInterrupt()
 {
 	readNeeded=1;
+	digitalWrite(ARD_SEND_LED,readNeeded);
 }

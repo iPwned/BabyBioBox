@@ -25,30 +25,29 @@
 
 #define S_PIN_MASK 0xFE
 
-typedef unsigned char uchar;
 
 typedef struct _ledValues
 {
-	uchar wetButton;
-	uchar dirtyButton;
-	uchar feedButton;
-	uchar sleepButton;
-	uchar wakeButton;
-	uchar sendButton;
-	uchar statusRed;
-	uchar statusGreen;
-	uchar statusBlue;
+	unsigned char wetButton;
+	unsigned char dirtyButton;
+	unsigned char feedButton;
+	unsigned char sleepButton;
+	unsigned char wakeButton;
+	unsigned char sendButton;
+	unsigned char statusRed;
+	unsigned char statusGreen;
+	unsigned char statusBlue;
 } ledValues;
 
 void init_mcp();
-void set_mcp_pin(uchar pin, int state);
+void set_mcp_pin(unsigned char pin, int state);
 void set_mcp_all(int state);
 
 int state=HIGH;
-uchar testPin=0;
-uchar setState=0;
-uchar animState=0;
-volatile uchar readNeeded=0;
+unsigned char testPin=0;
+unsigned char setState=0;
+unsigned char animState=0;
+volatile unsigned char readNeeded=0;
 ledValues currLightVals;
 
 void setup()
@@ -136,14 +135,14 @@ void init_mcp()
 
 }
 
-void set_mcp_pin(uchar pin, int state)
+void set_mcp_pin(unsigned char pin, int state)
 {
-	uchar lSetState=setState;
+	unsigned char lSetState=setState;
 	
 	//set the state and write it out
 Serial.print("Initial set state: ");
 Serial.println(lSetState);
-	lSetState=(S_PIN_MASK << pin | S_PIN_MASK >> sizeof(uchar)*8-pin) & lSetState|state<<pin;
+	lSetState=(S_PIN_MASK << pin | S_PIN_MASK >> sizeof(unsigned char)*8-pin) & lSetState|state<<pin;
 Serial.print("Modified set state: ");
 Serial.println(lSetState);
 	Wire.beginTransmission(MCP_ADDR);
@@ -168,9 +167,9 @@ void set_mcp_all(int state)
 	Wire.endTransmission();
 }
 
-uchar read_mcp_port()
+unsigned char read_mcp_port()
 {
-	uchar retVal=0;
+	unsigned char retVal=0;
 	Wire.beginTransmission(MCP_ADDR);
 	Wire.write(0x11);  //0x11 - INTCAPB
 	Wire.endTransmission();
@@ -179,7 +178,7 @@ uchar read_mcp_port()
 	return retVal;
 }
 
-void setRGB_led(uchar red, uchar green, uchar blue)
+void setRGB_led(unsigned char red, unsigned char green, unsigned char blue)
 {
 
 	analogWrite(ARD_STAT_RED,red);
@@ -187,10 +186,10 @@ void setRGB_led(uchar red, uchar green, uchar blue)
 	analogWrite(ARD_STAT_BLUE,blue);
 }
 
-void set_anim_state(uchar pin, int state)
+void set_anim_state(unsigned char pin, int state)
 {
-	uchar lAnimState=animState;
-	lAnimState=(S_PIN_MASK<<pin | S_PIN_MASK>>sizeof(uchar)*8-pin)&lAnimState|state<<pin;
+	unsigned char lAnimState=animState;
+	lAnimState=(S_PIN_MASK<<pin | S_PIN_MASK>>sizeof(unsigned char)*8-pin)&lAnimState|state<<pin;
 	animState=lAnimState;
 }
 

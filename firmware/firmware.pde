@@ -20,10 +20,12 @@
 #define MCP_WAKE 4
 #define MCP_SEND 5
 #define MCP_ADDR 0x20
-#define MCP_INT_PIN 7
 
 #define S_PIN_MASK 0xFE
-
+#define WARN_TIMEOUT 120000
+#define RESET_TIMEOUT 150000
+#define DEBOUNCE_WINDOW 100
+//play with buttons and the scope to figure out how long the debounce window actually needs to be
 
 typedef struct _ledStateSpace
 {
@@ -63,6 +65,7 @@ void set_mcp_all(int state);
 ledStateSpace stateSpace;
 //int state=HIGH;
 //unsigned char testPin=0;
+unsigned long lastInteractTime=0;
 unsigned char setState=0;
 unsigned char oldSetState=0;
 unsigned char animState=0;
@@ -76,7 +79,7 @@ void setup()
 	pinMode(ARD_STAT_GREEN,OUTPUT);
 	pinMode(ARD_STAT_BLUE,OUTPUT);
 	pinMode(ARD_SEND_LED,OUTPUT);
-	pinMode(MCP_INT_PIN,INPUT);
+	pinMode(ARD_MCP_INT,INPUT);
 
 	stateSpace.wetUpTime=0;
 	stateSpace.dirtyUpTime=0;
@@ -110,7 +113,7 @@ void setup()
 	Serial1.begin(9600);
 	Wire.begin();
 	init_mcp();
-	attachInterrupt(digitalPinToInterrupt(MCP_INT_PIN),keypressInterrupt,LOW);
+	attachInterrupt(digitalPinToInterrupt(ARD_MCP_INT),keypressInterrupt,LOW);
 }
 
 void loop()
@@ -245,11 +248,99 @@ void process_state()
 	unsigned char mcpSendState=0;
 	if(setState!=oldSetState)
 	{
+		//if setState changed, then that implies that a button was pushed, 
+		//act accordingly.
+
 		if(setState & 0x20)
 		{
 			//send button pressed, clear out all lights
+			lastInteractTime=millis();
+			ledStateSpace.wetState=0;
+			ledStateSpace.wetVal=0;
+			ledStateSpace.dirtyState=0;
+			ledStateSpace.dirtyVal=0;
+			ledStateSpace.feedState=0;
+			ledStateSpace.feedVal=0;
+			ledStateSpace.sleepState=0;
+			ledStateSpace.sleepVal=0;
+			ledStateSpace.wakeState=0;
+			ledStateSpace.wakeVal=0;
+			ledStateSpace.sendState=0;
+			ledStateSpace.sendVal=0;
+
+			set_mcp_port(0);
+			digitalWrite(ARD_SEND_LED,LOW);
+
+			//do the send here.
+
+			setState=0;
+		}
+		else if(setState & 0x1F)
+		{
+			//any other buttons are active.
+			//this means we can reset the time of last interaction and clear
+			//any warning animation states that may have been running.
+			lastInteractTime=millis();
+			ledStateSpace.wetState=0;
+			ledStateSpace.wetVal=setState & ~S_PIN_MASK ? 255:0;
+			ledStateSpace.dirtyState=0;
+			ledStateSpace.dirtyVal=setState & ~S_PIN_MASK<<1 ? 255:0;
+			ledStateSpace.feedState=0;
+			ledStateSpace.feedVal=setState & ~S_PIN_MASK<<2 ? 255:0;
+			ledStateSpace.sleepState=0;
+			ledStateSpace.sleepVal=setState & ~S_PIN_MASK<<3 ? 255:0;
+			ledStateSpace.wakeState=0;
+			ledStateSpace.wakeVal=setState & ~S_PIN_MASK<<4 ? 255:0;
+			set_mcp_port(setState & 0x1F);
 		}
 			
 	}
+	else //if setState?  Don't really care about setting up animations and reset timers if there's no state right?
+	{
+		//no change in state, need to check if one of the timeouts has expired.
+		unsigned long currTime=millis();
+		if(currTime >= lastInteractTime + WARN_TIMEOUT && currTime < lastInteractTime + RESET_TIMEOUT)
+		{
+			//start up the animations for active buttons that aren't already set
+			//to animate.
+			if(setState & ~S_PIN_MASK && !ledStateSpace.wetState)
+				ledStateSpace.wetState=1;
+			if(setState & ~S_PIN_MASK<<1 && !ledStateSpace.dirtyState)
+				ledStateSpace.dirtyState=1;
+			if(setState & ~S_PIN_MASK<<2 && !ledStateSpace.feedState)
+				ledStateSpace.feedState=1;
+			if(setState & ~S_PIN_MASK<<3 && !ledStateSpace.sleepState)
+				ledStateSpace.sleepState=1;
+			if(setState & ~S_PIN_MASK<<4 && !ledStateSpace.wakeState)
+				ledStateSpace.wakeState=1;
+		}
+		else if(currTime <= lastInteractTime + RESET_TIMEOUT)
+		{
+			//clear out the state, reset the lights and update reset timer.
+			lastInteractTime=millis();
+			ledStateSpace.wetState=0;
+			ledStateSpace.wetVal=0;
+			ledStateSpace.dirtyState=0;
+			ledStateSpace.dirtyVal=0;
+			ledStateSpace.feedState=0;
+			ledStateSpace.feedVal=0;
+			ledStateSpace.sleepState=0;
+			ledStateSpace.sleepVal=0;
+			ledStateSpace.wakeState=0;
+			ledStateSpace.wakeVal=0;
+			ledStateSpace.sendState=0;
+			ledStateSpace.sendVal=0;
+
+			set_mcp_port(0);
+			digitalWrite(ARD_SEND_LED,LOW);
+			setState=0;
+		}
+	}
+	updateAnimations();
 	oldSetState=setState;
+}
+
+void updateAnimations()
+{
+
 }

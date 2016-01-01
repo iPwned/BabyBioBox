@@ -222,10 +222,12 @@ void set_mcp_port(unsigned char value)
 
 void setRGB_led(unsigned char red, unsigned char green, unsigned char blue)
 {
-
 	analogWrite(ARD_STAT_RED,red);
+	ledStateSpace.redVal=red;
 	analogWrite(ARD_STAT_GREEN,green);
+	ledStateSpace.greenVal=green;
 	analogWrite(ARD_STAT_BLUE,blue);
+	ledStateSpace.blueVal=blue;
 }
 
 /* Not needed if I move forward with the datastructure idea
@@ -255,6 +257,7 @@ void process_state()
 		{
 			//send button pressed, clear out all lights
 			lastInteractTime=millis();
+			setRGB_led(0,0,255);  //set to blue to indicate that we're sending
 			ledStateSpace.wetState=0;
 			ledStateSpace.wetVal=0;
 			ledStateSpace.dirtyState=0;
@@ -274,6 +277,7 @@ void process_state()
 			//do the send here.
 
 			setState=0;
+			setRGB_led(0,0,0);  //this will eventually be the battery value.
 		}
 		else if(setState & 0x1F)
 		{

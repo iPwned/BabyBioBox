@@ -22,8 +22,8 @@
 #define MCP_ADDR 0x20
 
 #define S_PIN_MASK 0xFE
-#define WARN_TIMEOUT 120000
-#define RESET_TIMEOUT 150000
+#define WARN_TIMEOUT 120000UL
+#define RESET_TIMEOUT 150000UL
 #define DEBOUNCE_WINDOW 100
 //play with buttons and the scope to figure out how long the debounce window actually needs to be
 
@@ -126,30 +126,23 @@ void setup()
 
 void loop()
 {
-	// setRGB_led(255, 255, 255);
-	// delay(300);
-	// setRGB_led(255, 0, 0);
-	// delay(300);
-	// setRGB_led(0, 255, 0);
-	// delay(300);
-	// setRGB_led(0, 0, 255);
-	// delay(300);
-
-	// if(readNeeded)
-	// {
 	//Realized that this debounce wouldn't work if used only when an interrupt 
 	//occurs.  Will instead use the interrupt to wake the processor back up when
 	//a button is pressed.
 		unsigned char readState=read_mcp_reg(0x13); //read gpio b
-		if(readState==lastReadState && millis() >= lastReadTime+DEBOUNCE_WINDOW)
+		if(readState!=lastReadState)
 		{
-			setState= setState ^ readState; //first press to enable second press to clear
+			if(millis()-lastReadTime >= DEBOUNCE_WINDOW)
+			{
+Serial.print("setState ");
+Serial.println(setState);
+Serial.print("readState ");
+Serial.println(readState);
+				lastReadTime=millis();
+				lastReadState=readState;
+				setState= setState ^ readState; //first press to enable second press to clear
+			}
 		}
-		//need to reset values in both cases.
-		// readNeeded=0;
-		lastReadTime=millis();
-		lastReadState=readState;
-	// }
 	//switching to active low interrupts /should/ obviate the need for the digitalRead.
 	//readNeeded=digitalRead(MCP_INT_PIN);
 	//digitalWrite(ARD_SEND_LED,readNeeded);
@@ -239,11 +232,11 @@ void set_mcp_reg(unsigned char writeReg,unsigned char value)
 void setRGB_led(unsigned char red, unsigned char green, unsigned char blue)
 {
 	analogWrite(ARD_STAT_RED,red);
-	ledStateSpace.redVal=red;
+	stateSpace.redVal=red;
 	analogWrite(ARD_STAT_GREEN,green);
-	ledStateSpace.greenVal=green;
+	stateSpace.greenVal=green;
 	analogWrite(ARD_STAT_BLUE,blue);
-	ledStateSpace.blueVal=blue;
+	stateSpace.blueVal=blue;
 }
 
 void keypressInterrupt()
@@ -269,18 +262,18 @@ void process_state()
 			//triggering a connect request for the xbee.
 			lastInteractTime=millis();
 			setRGB_led(0,0,255);  //set to blue to indicate that we're sending
-			ledStateSpace.wetState=0;
-			ledStateSpace.wetVal=0;
-			ledStateSpace.dirtyState=0;
-			ledStateSpace.dirtyVal=0;
-			ledStateSpace.feedState=0;
-			ledStateSpace.feedVal=0;
-			ledStateSpace.sleepState=0;
-			ledStateSpace.sleepVal=0;
-			ledStateSpace.wakeState=0;
-			ledStateSpace.wakeVal=0;
-			ledStateSpace.sendState=0;
-			ledStateSpace.sendVal=0;
+			stateSpace.wetState=0;
+			stateSpace.wetVal=0;
+			stateSpace.dirtyState=0;
+			stateSpace.dirtyVal=0;
+			stateSpace.feedState=0;
+			stateSpace.feedVal=0;
+			stateSpace.sleepState=0;
+			stateSpace.sleepVal=0;
+			stateSpace.wakeState=0;
+			stateSpace.wakeVal=0;
+			stateSpace.sendState=0;
+			stateSpace.sendVal=0;
 
 			set_mcp_reg(0x12,0); //gpio A
 			digitalWrite(ARD_SEND_LED,LOW);
@@ -288,6 +281,7 @@ void process_state()
 			//do the send here.
 
 			setState=0;
+Serial.println("zeroed setState");
 			setRGB_led(0,0,0);  //this will eventually be the battery value.
 		}
 		else if(setState & 0x1F)
@@ -296,17 +290,17 @@ void process_state()
 			//this means we can reset the time of last interaction and clear
 			//any warning animation states that may have been running.
 			lastInteractTime=millis();
-			ledStateSpace.wetState=0;
-			ledStateSpace.wetVal=setState & ~S_PIN_MASK ? 255:0;
-			ledStateSpace.dirtyState=0;
-			ledStateSpace.dirtyVal=setState & ~S_PIN_MASK<<1 ? 255:0;
-			ledStateSpace.feedState=0;
-			ledStateSpace.feedVal=setState & ~S_PIN_MASK<<2 ? 255:0;
-			ledStateSpace.sleepState=0;
-			ledStateSpace.sleepVal=setState & ~S_PIN_MASK<<3 ? 255:0;
-			ledStateSpace.wakeState=0;
-			ledStateSpace.wakeVal=setState & ~S_PIN_MASK<<4 ? 255:0;
-			ledStateSpace.sendState=ledStateSpace.sendState ? ledStateSpace.sendState : 1;
+			stateSpace.wetState=0;
+			stateSpace.wetVal=setState & ~S_PIN_MASK ? 255:0;
+			stateSpace.dirtyState=0;
+			stateSpace.dirtyVal=setState & ~S_PIN_MASK<<1 ? 255:0;
+			stateSpace.feedState=0;
+			stateSpace.feedVal=setState & ~S_PIN_MASK<<2 ? 255:0;
+			stateSpace.sleepState=0;
+			stateSpace.sleepVal=setState & ~S_PIN_MASK<<3 ? 255:0;
+			stateSpace.wakeState=0;
+			stateSpace.wakeVal=setState & ~S_PIN_MASK<<4 ? 255:0;
+			stateSpace.sendState=stateSpace.sendState ? stateSpace.sendState : 1;
 			set_mcp_reg(0x12, setState & 0x1F); //gpio a
 		}
 			
@@ -319,33 +313,33 @@ void process_state()
 		{
 			//start up the animations for active buttons that aren't already set
 			//to animate.
-			if(setState & ~S_PIN_MASK && !ledStateSpace.wetState)
-				ledStateSpace.wetState=1;
-			if(setState & ~S_PIN_MASK<<1 && !ledStateSpace.dirtyState)
-				ledStateSpace.dirtyState=1;
-			if(setState & ~S_PIN_MASK<<2 && !ledStateSpace.feedState)
-				ledStateSpace.feedState=1;
-			if(setState & ~S_PIN_MASK<<3 && !ledStateSpace.sleepState)
-				ledStateSpace.sleepState=1;
-			if(setState & ~S_PIN_MASK<<4 && !ledStateSpace.wakeState)
-				ledStateSpace.wakeState=1;
+			if(setState & ~S_PIN_MASK && !stateSpace.wetState)
+				stateSpace.wetState=1;
+			if(setState & ~S_PIN_MASK<<1 && !stateSpace.dirtyState)
+				stateSpace.dirtyState=1;
+			if(setState & ~S_PIN_MASK<<2 && !stateSpace.feedState)
+				stateSpace.feedState=1;
+			if(setState & ~S_PIN_MASK<<3 && !stateSpace.sleepState)
+				stateSpace.sleepState=1;
+			if(setState & ~S_PIN_MASK<<4 && !stateSpace.wakeState)
+				stateSpace.wakeState=1;
 		}
-		else if(currTime <= lastInteractTime + RESET_TIMEOUT)
+		else if(currTime >= lastInteractTime + RESET_TIMEOUT)
 		{
 			//clear out the state, reset the lights and update reset timer.
 			lastInteractTime=millis();
-			ledStateSpace.wetState=0;
-			ledStateSpace.wetVal=0;
-			ledStateSpace.dirtyState=0;
-			ledStateSpace.dirtyVal=0;
-			ledStateSpace.feedState=0;
-			ledStateSpace.feedVal=0;
-			ledStateSpace.sleepState=0;
-			ledStateSpace.sleepVal=0;
-			ledStateSpace.wakeState=0;
-			ledStateSpace.wakeVal=0;
-			ledStateSpace.sendState=0;
-			ledStateSpace.sendVal=0;
+			stateSpace.wetState=0;
+			stateSpace.wetVal=0;
+			stateSpace.dirtyState=0;
+			stateSpace.dirtyVal=0;
+			stateSpace.feedState=0;
+			stateSpace.feedVal=0;
+			stateSpace.sleepState=0;
+			stateSpace.sleepVal=0;
+			stateSpace.wakeState=0;
+			stateSpace.wakeVal=0;
+			stateSpace.sendState=0;
+			stateSpace.sendVal=0;
 
 			set_mcp_reg(0x12,0); //gpioa
 			digitalWrite(ARD_SEND_LED,LOW);
@@ -358,18 +352,18 @@ void process_state()
 
 void updateAnimations()
 {
-	if(ledStateSpace.sendState)
+	if(stateSpace.sendState)
 	{
 		updateSendAnimation();
 		canSleep=0;
 	}
-	if(ledStateSpace.wetState || ledStateSpace.dirtyState || ledStateSpace.feedState ||
-		ledStateSpace.sleepState || ledStateSpace.wakeState)
+	if(stateSpace.wetState || stateSpace.dirtyState || stateSpace.feedState ||
+		stateSpace.sleepState || stateSpace.wakeState)
 	{
 		updateDataAnimation();
 		canSleep=0;
 	}
-	if(ledSTateSpace.rgbState)
+	if(stateSpace.rgbState)
 	{
 		updateRGBAnimation();
 		canSleep=0;
@@ -379,34 +373,34 @@ void updateAnimations()
 
 void updateSendAnimation()
 {
-	analogWrite(ARD_SEND_LED,ledStateSpace.sendVal); //make this conditional?  try running as is and then decide
-	if(millis() >= ledStateSpace.sendUpTime)
+	analogWrite(ARD_SEND_LED,stateSpace.sendVal); //make this conditional?  try running as is and then decide
+	if(millis() >= stateSpace.sendUpTime)
 	{
-		switch(ledStateSpace.sendState)
+		switch(stateSpace.sendState)
 		{
 		case 1:
 			//led is rising or on.
-			ledStateSpace.sendVal+=5;
-			ledstateSpace.sendUpTime=millis()+19;
-			if(ledStateSpace.sendVal==255)
+			stateSpace.sendVal+=5;
+			stateSpace.sendUpTime=millis()+19;
+			if(stateSpace.sendVal==255)
 			{
-				ledStateSpace.sendState=2;
-				ledStateSpace.sendUpTime=millis()+500;//linger on full on for just a bit.
+				stateSpace.sendState=2;
+				stateSpace.sendUpTime=millis()+500;//linger on full on for just a bit.
 			}
 			break;
 		case 2:
 			//led is falling or off.
-			ledstateSpace.sendVal-=5;
-			ledStateSpace.sendUpTime=millis()+30;  //play with this until effect is pleasing
-			if(ledStateSpace.sendVal==0)
+			stateSpace.sendVal-=5;
+			stateSpace.sendUpTime=millis()+30;  //play with this until effect is pleasing
+			if(stateSpace.sendVal==0)
 			{
-				ledStateSpace.sendState=1;
-				ledStateSpace.sendUpTime=millis()+200;  //linger just a bit.  again, tweak until pleasing.
+				stateSpace.sendState=1;
+				stateSpace.sendUpTime=millis()+200;  //linger just a bit.  again, tweak until pleasing.
 			}
 			break;
 		default:
 			//unknown animation state, stop the animation.
-			ledStateSpace.sendState=0;
+			stateSpace.sendState=0;
 			break;
 		}
 	}
@@ -414,104 +408,98 @@ void updateSendAnimation()
 
 void updateDataAnimation()
 {
-
+Serial.println("would update data animation!");
 }
 
 void updateRGBAnimation()
 {
 	//temporary function body to replace testing code in loop().
-
-	if(millis() >= ledStateSpace.rgbUpTime)
+unsigned long animStartTime=millis();
+	if(millis() >= stateSpace.rgbUpTime)
 	{
-		switch(ledStateSpace.rgbState)
+		switch(stateSpace.rgbState)
 		{
 		case 1:
 			//full red, linger
-			setRGB_led(255,0,0)
-			ledStateSpace.rgbUpTime=millis()+300;
-			ledStateSpace.rgbState=2;
+			setRGB_led(255,0,0);
+			stateSpace.rgbUpTime=millis()+1000;
+			stateSpace.rgbState=2;
 			break;
 		case 2:
 			//Red to green, turning green on
-			setRGB_led(ledStateSpace.redVal,ledStateSpace.greenVal,0);
-			ledStateSpace.greenVal+=5;
-			ledStateSpace.rgbUpTime=millis()+5;
-			if(ledStateSpace.greenVal>255)
+			setRGB_led(stateSpace.redVal,stateSpace.greenVal,0);
+			stateSpace.greenVal+=5;
+			stateSpace.rgbUpTime=millis()+50;
+			if(stateSpace.greenVal==255)
 			{
-				ledStateSpace.greenVal=255;
-				ledStateSpace.rgbState=3;
+				stateSpace.rgbState=3;
 			}
 			break;
 		case 3:
 			//Red to green, turning red off
-			setRGB_led(ledStateSpace.redVal,ledStateSpace.greenVal,0);
-			ledStateSpace.redVal-=5;
-			ledStateSpace.rgbUpTime=millis()+5;
-			if(ledStateSpace.redVal<0)
+			setRGB_led(stateSpace.redVal,stateSpace.greenVal,0);
+			stateSpace.redVal-=5;
+			stateSpace.rgbUpTime=millis()+50;
+			if(stateSpace.redVal==0)
 			{
-				ledStateSpace.redVal=0;
-				ledStateSpace.rgbState=4;
+				stateSpace.rgbState=4;
 			}
 			break;
 		case 4:
 			//full green, linger
 			setRGB_led(0,255,0);
-			ledStateSpace.rgbUpTime=millis()+300;
-			ledStateSpace.rgbState=5;
+			stateSpace.rgbUpTime=millis()+1000;
+			stateSpace.rgbState=5;
 			break;
 		case 5:
 			//green to blue, turning blue on
-			setRGB_led(0,ledStateSpace.greenVal,ledStateSpace.blueVal);
-			ledStateSpace.blueVal+=5;
-			ledStateSpace.rgbUpTime=millis()+5;
-			if(ledStateSpace.blueVal>255)
+			setRGB_led(0,stateSpace.greenVal,stateSpace.blueVal);
+			stateSpace.blueVal+=5;
+			stateSpace.rgbUpTime=millis()+50;
+			if(stateSpace.blueVal==255)
 			{
-				ledStateSpace.blueVal=255;
-				ledStateSpace.rgbState=6;
+				stateSpace.rgbState=6;
 			}
 			break;
 		case 6:
 			//green to blue, turning green off
-			setRGB_led(0,ledStateSpace.greenVal,ledStateSpace.blueVal);
-			ledStateSpace.greenVal-=5;
-			ledStateSpace.rgbUpTime=millis()+5;
-			if(ledStateSpace.greenVal<0)
+			setRGB_led(0,stateSpace.greenVal,stateSpace.blueVal);
+			stateSpace.greenVal-=5;
+			stateSpace.rgbUpTime=millis()+50;
+			if(stateSpace.greenVal==0)
 			{
-				ledStateSpace.greenVal=0;
-				ledStateSpace.rgbState=7;
+				stateSpace.rgbState=7;
 			}
 			break;
 		case 7:
 			//full blue, linger
 			setRGB_led(0,0,255);
-			ledStateSpace.rgbUpTime=millis()+300;
-			ledStateSpace.rgbState=8;
+			stateSpace.rgbUpTime=millis()+1000;
+			stateSpace.rgbState=8;
 			break;
 		case 8:
 			//blue to red, turning red on
-			setRGB_led(ledStateSpace.redVal,0,ledStateSpace.blueVal);
-			ledStateSpace.redVal+=5;
-			ledStateSpace.rgbUpTime=millis()+5;
-			if(ledStateSpace.redVal>255)
+			setRGB_led(stateSpace.redVal,0,stateSpace.blueVal);
+			stateSpace.redVal+=5;
+			stateSpace.rgbUpTime=millis()+50;
+			if(stateSpace.redVal==255)
 			{
-				ledStateSpace.redVal=255;
-				ledStateSpace.rgbState=9;
+				stateSpace.rgbState=9;
 			}
 			break;
 		case 9:
 			//blue to red, turning blue off
-			setRGB_led(ledStateSpace.redVal,0,ledStateSpace.blueVal);
-			ledStateSpace.blueVal-=5;
-			ledStateSpace.rgbUpTime=millis()+5;
-			if(ledStateSpace.blueVal<0)
+			setRGB_led(stateSpace.redVal,0,stateSpace.blueVal);
+			stateSpace.blueVal-=5;
+			stateSpace.rgbUpTime=millis()+50;
+			if(stateSpace.blueVal==0)
 			{
-				ledStateSpace.blueVal=0;
-				ledStateSpace.rgbState=1;
+				stateSpace.rgbState=1;
 			}
 			break;
 		default:
 			//unknown animation state, end the animation.
-			ledStateSpace.rgbState=0;
+			stateSpace.rgbState=0;
 			break;
 		}//end state switch
 	}//end animation timeout if

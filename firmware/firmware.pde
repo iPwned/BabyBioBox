@@ -21,11 +21,14 @@
 #define MCP_SEND 5
 #define MCP_ADDR 0x20
 
+#define RTC_ADDR 0x68
+
 #define S_PIN_MASK 0xFE
 #define WARN_TIMEOUT 120000UL
 #define RESET_TIMEOUT 150000UL
 #define DEBOUNCE_WINDOW 100
 //play with buttons and the scope to figure out how long the debounce window actually needs to be
+#define MAX_RETRIES 3
 
 typedef struct _ledStateSpace
 {
@@ -248,7 +251,6 @@ void keypressInterrupt()
 
 void process_state()
 {
-	unsigned char mcpSendState=0;
 	if(setState!=oldSetState)
 	{
 		//if setState changed, then that implies that a button was pushed, 
@@ -260,6 +262,7 @@ void process_state()
 			//need to make this conditional, if there is data to send.  Also need
 			//to add the code that will support multiple presses on the send button
 			//triggering a connect request for the xbee.
+			unsigned char sendRetval=0;
 			lastInteractTime=millis();
 			setRGB_led(0,0,255);  //set to blue to indicate that we're sending
 			stateSpace.wetState=0;
@@ -278,11 +281,25 @@ void process_state()
 			set_mcp_reg(0x12,0); //gpio A
 			digitalWrite(ARD_SEND_LED,LOW);
 
-			//do the send here.
+			set_canSleep(0); //not allowed to sleep while sending data
+
+			for(int i=0;i<MAX_RETRIES && !sendRetVal;++i)
+			{
+				sendRetVal=send_data();
+			}
+
+			if(!sendRetVal)
+			{
+				//if after retries sendRetVal is still false, store the data
+				//and show the failed send animation.
+
+			}
+			else
+			{
+				//no problems sending.  show the succesful send animation.
+			}
 
 			setState=0;
-Serial.println("zeroed setState");
-			setRGB_led(0,0,0);  //this will eventually be the battery value.
 		}
 		else if(setState & 0x1F)
 		{
@@ -302,10 +319,34 @@ Serial.println("zeroed setState");
 			stateSpace.wakeVal=setState & ~S_PIN_MASK<<4 ? 255:0;
 			stateSpace.sendState=stateSpace.sendState ? stateSpace.sendState : 1;
 			set_mcp_reg(0x12, setState & 0x1F); //gpio a
+			set_canSleep(0);  //running the send pending animation
 		}
-			
+		else if(!state)
+		{
+			//this implies that the last active button was pressed.  Shutdown any 
+			//buttons and stop any running animations.
+			lastInteractTime=millis();
+			setRGB_led(0,0,0);
+			stateSpace.wetState=0;
+			stateSpace.wetVal=0;
+			stateSpace.dirtyState=0;
+			stateSpace.dirtyVal=0;
+			stateSpace.feedState=0;
+			stateSpace.feedVal=0;
+			stateSpace.sleepState=0;
+			stateSpace.sleepVal=0;
+			stateSpace.wakeState=0;
+			stateSpace.wakeVal=0;
+			stateSpace.sendState=0;
+			stateSpace.sendVal=0;
+
+			digitalWrite(ARD_SEND_LED,LOW);
+			set_mcp_reg(0x12,LOW);//gpio a
+			set_canSleep(1); //no running animations or data being sent
+		}
+		oldSetState=setState;
 	}
-	else //if setState?  Don't really care about setting up animations and reset timers if there's no state right?
+	else if(state)
 	{
 		//no change in state, need to check if one of the timeouts has expired.
 		unsigned long currTime=millis();
@@ -323,6 +364,7 @@ Serial.println("zeroed setState");
 				stateSpace.sleepState=1;
 			if(setState & ~S_PIN_MASK<<4 && !stateSpace.wakeState)
 				stateSpace.wakeState=1;
+			set_canSleep(0); //running the time out warning animation.
 		}
 		else if(currTime >= lastInteractTime + RESET_TIMEOUT)
 		{
@@ -344,10 +386,10 @@ Serial.println("zeroed setState");
 			set_mcp_reg(0x12,0); //gpioa
 			digitalWrite(ARD_SEND_LED,LOW);
 			setState=0;
+			set_canSleep(1); //no running animations and no data being sent
 		}
 	}
 	updateAnimations();
-	oldSetState=setState;
 }
 
 void updateAnimations()
@@ -355,18 +397,18 @@ void updateAnimations()
 	if(stateSpace.sendState)
 	{
 		updateSendAnimation();
-		canSleep=0;
+		set_canSleep(0);
 	}
 	if(stateSpace.wetState || stateSpace.dirtyState || stateSpace.feedState ||
 		stateSpace.sleepState || stateSpace.wakeState)
 	{
 		updateDataAnimation();
-		canSleep=0;
+		set_canSleep(0);
 	}
 	if(stateSpace.rgbState)
 	{
 		updateRGBAnimation();
-		canSleep=0;
+		set_canSleep(0);
 	}
 }
 
@@ -504,3 +546,56 @@ unsigned long animStartTime=millis();
 		}//end state switch
 	}//end animation timeout if
 }//end updateRGBAnimation()
+
+unsigned char set_canSleep(unsigned char newVal)
+{
+	unsigned char sregBack=SREG;
+	noInterrupts();
+	canSleep=newVal;
+	SREG=sregBack;
+	return canSleep;
+}
+
+unsigned char send_data()
+{
+	//will eventually send the data.  For the moment this is being used to test
+	//the rtc module.
+	unsigned char seconds;
+	unsigned char minutes;
+	unsigned char hours;
+	unsigned char dayOfWeek;
+	unsigned char dayOfMonth;
+	unsigned char month;
+	unsigned char year;
+	unsigned char config;
+
+	Wire.beginTransmission(RTC_ADDR);
+	Wire.write(0x00);
+	Wire.endTransmission();
+	Wire.requestFrom(RTC_ADDR,8);//want to see the time registers and current configuration.
+	seconds=Wire.read();
+	minutes=Wire.read();
+	hours=Wire.read();
+	dayOfWeek=Wire.read();
+	dayOfMonth=Wire.read();
+	month=Wire.read();
+	year=Wire.read();
+	config=Wire.read();
+
+	Serial.print("Seconds: ");
+	Serial.println(seconds);
+	Serial.print("Minutes: ");
+	Serial.println(minutes);
+	Serial.print("Hours: ");
+	Serial.println(hours);
+	Serial.print("Day of Week: ");
+	Serial.println(dayOfWeek);
+	Serial.print("Day of Month: ");
+	Serial.println(dayOfMonth);
+	Serial.print("Month: ");
+	Serial.println(month);
+	Serial.print("Year: ");
+	Serial.println(year);
+	Serial.print("Configuration Register: ");
+	Serial.println(config);
+}

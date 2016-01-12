@@ -26,9 +26,12 @@
 #define S_PIN_MASK 0xFE
 #define WARN_TIMEOUT 120000UL
 #define RESET_TIMEOUT 150000UL
-#define DEBOUNCE_WINDOW 100
+#define DEBOUNCE_WINDOW 100L
 //play with buttons and the scope to figure out how long the debounce window actually needs to be
+#define SETUP_TIMEOUT 400L
 #define MAX_RETRIES 3
+
+typedef unsigned char uchar;
 
 typedef struct _ledStateSpace
 {
@@ -52,32 +55,44 @@ typedef struct _ledStateSpace
 	// unsigned int greenState;
 	// unsigned int blueState;
 	unsigned int rgbState;
-	unsigned char wetVal;
-	unsigned char dirtyVal;
-	unsigned char feedVal;
-	unsigned char sleepVal;
-	unsigned char wakeVal;
-	unsigned char sendVal;
-	unsigned char redVal;
-	unsigned char greenVal;
-	unsigned char blueVal;
+	uchar wetVal;
+	uchar dirtyVal;
+	uchar feedVal;
+	uchar sleepVal;
+	uchar wakeVal;
+	uchar sendVal;
+	uchar redVal;
+	uchar greenVal;
+	uchar blueVal;
 } ledStateSpace;
 
+
 void init_mcp();
-void set_mcp_pin(unsigned char pin, int state);
+void set_mcp_pin(uchar pin, int state);
 void set_mcp_all(int state);
+uchar read_mcp_reg(uchar readReg)
+void set_mcp_reg(uchar writeReg,uchar value)
+void setRGB_led(uchar red, uchar green, uchar blue)
+void keypressInterrupt()
+void process_state()
+void updateAnimations()
+void updateSendAnimation()
+void updateRGBAnimation()
+uchar set_canSleep(uchar newVal)
+uchar send_data()
 
 ledStateSpace stateSpace;
 //int state=HIGH;
-//unsigned char testPin=0;
+//uchar testPin=0;
 unsigned long lastInteractTime=0;
 unsigned long lastReadTime=0;
-unsigned char setState=0;
-unsigned char oldSetState=0;
-unsigned char animState=0;
-unsigned char lastReadState=0;
-volatile unsigned char readNeeded=0;
-volatile unsigned char canSleep=0;
+int sendPressCount=0;
+uchar setState=0;
+uchar oldSetState=0;
+uchar animState=0;
+uchar lastReadState=0;
+volatile uchar readNeeded=0;
+volatile uchar canSleep=0;
 
 void setup()
 {
@@ -132,7 +147,7 @@ void loop()
 	//Realized that this debounce wouldn't work if used only when an interrupt 
 	//occurs.  Will instead use the interrupt to wake the processor back up when
 	//a button is pressed.
-		unsigned char readState=read_mcp_reg(0x13); //read gpio b
+		uchar readState=read_mcp_reg(0x13); //read gpio b
 		if(readState!=lastReadState)
 		{
 			if(millis()-lastReadTime >= DEBOUNCE_WINDOW)
@@ -185,12 +200,12 @@ void init_mcp()
 
 }
 
-void set_mcp_pin(unsigned char pin, int state)
+void set_mcp_pin(uchar pin, int state)
 {
-	unsigned char lSetState=setState;
+	uchar lSetState=setState;
 	
 	//set the state and write it out
-	lSetState=(S_PIN_MASK << pin | S_PIN_MASK >> sizeof(unsigned char)*8-pin) & lSetState|state<<pin;
+	lSetState=(S_PIN_MASK << pin | S_PIN_MASK >> sizeof(uchar)*8-pin) & lSetState|state<<pin;
 	Wire.beginTransmission(MCP_ADDR);
 	Wire.write(0x12);  //0x12 - GPIOA
 	Wire.write(lSetState);
@@ -213,9 +228,9 @@ void set_mcp_all(int state)
 	Wire.endTransmission();
 }
 
-unsigned char read_mcp_reg(unsigned char readReg)
+uchar read_mcp_reg(uchar readReg)
 {
-	unsigned char retVal=0;
+	uchar retVal=0;
 	Wire.beginTransmission(MCP_ADDR);
 	Wire.write(readReg);
 	Wire.endTransmission();
@@ -224,7 +239,7 @@ unsigned char read_mcp_reg(unsigned char readReg)
 	return retVal;
 }
 
-void set_mcp_reg(unsigned char writeReg,unsigned char value)
+void set_mcp_reg(uchar writeReg,uchar value)
 {
 	Wire.beginTransmission(MCP_ADDR);
 	Wire.write(writeReg);
@@ -232,7 +247,7 @@ void set_mcp_reg(unsigned char writeReg,unsigned char value)
 	Wire.endTransmission();
 }
 
-void setRGB_led(unsigned char red, unsigned char green, unsigned char blue)
+void setRGB_led(uchar red, uchar green, uchar blue)
 {
 	analogWrite(ARD_STAT_RED,red);
 	stateSpace.redVal=red;
@@ -262,8 +277,22 @@ void process_state()
 			//need to make this conditional, if there is data to send.  Also need
 			//to add the code that will support multiple presses on the send button
 			//triggering a connect request for the xbee.
-			unsigned char sendRetval=0;
-			lastInteractTime=millis();
+			if(!(setState & 0xDF) && millis()<=lastInteractTime+SETUP_TIMEOUT)
+			{
+				//no other buttons were active, and press was fast enough see if
+				//setup procedure should be entered
+				if(++sendPressCount >= 3)
+				{
+					//do the setup here
+				}
+			}
+			else if(!(setState & 0xDF))
+			{
+				//no other buttons were active but the previous presses didn't 
+				//come fast enough.  Restart the count
+				sendPressCount=1;
+			}
+			uchar sendRetval=0;
 			setRGB_led(0,0,255);  //set to blue to indicate that we're sending
 			stateSpace.wetState=0;
 			stateSpace.wetVal=0;
@@ -300,13 +329,13 @@ void process_state()
 			}
 
 			setState=0;
+			sendPressCount=0;
 		}
 		else if(setState & 0x1F)
 		{
 			//any other buttons are active.
 			//this means we can reset the time of last interaction and clear
 			//any warning animation states that may have been running.
-			lastInteractTime=millis();
 			stateSpace.wetState=0;
 			stateSpace.wetVal=setState & ~S_PIN_MASK ? 255:0;
 			stateSpace.dirtyState=0;
@@ -325,7 +354,6 @@ void process_state()
 		{
 			//this implies that the last active button was pressed.  Shutdown any 
 			//buttons and stop any running animations.
-			lastInteractTime=millis();
 			setRGB_led(0,0,0);
 			stateSpace.wetState=0;
 			stateSpace.wetVal=0;
@@ -345,6 +373,7 @@ void process_state()
 			set_canSleep(1); //no running animations or data being sent
 		}
 		oldSetState=setState;
+		lastInteractTime=millis();
 	}
 	else if(state)
 	{
@@ -547,27 +576,27 @@ unsigned long animStartTime=millis();
 	}//end animation timeout if
 }//end updateRGBAnimation()
 
-unsigned char set_canSleep(unsigned char newVal)
+uchar set_canSleep(uchar newVal)
 {
-	unsigned char sregBack=SREG;
+	uchar sregBack=SREG;
 	noInterrupts();
 	canSleep=newVal;
 	SREG=sregBack;
 	return canSleep;
 }
 
-unsigned char send_data()
+uchar send_data()
 {
 	//will eventually send the data.  For the moment this is being used to test
 	//the rtc module.
-	unsigned char seconds;
-	unsigned char minutes;
-	unsigned char hours;
-	unsigned char dayOfWeek;
-	unsigned char dayOfMonth;
-	unsigned char month;
-	unsigned char year;
-	unsigned char config;
+	uchar seconds;
+	uchar minutes;
+	uchar hours;
+	uchar dayOfWeek;
+	uchar dayOfMonth;
+	uchar month;
+	uchar year;
+	uchar config;
 
 	Wire.beginTransmission(RTC_ADDR);
 	Wire.write(0x00);

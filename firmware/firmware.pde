@@ -70,15 +70,17 @@ typedef struct _ledStateSpace
 void init_mcp();
 void set_mcp_pin(uchar pin, int state);
 void set_mcp_all(int state);
-uchar read_mcp_reg(uchar readReg)
-void set_mcp_reg(uchar writeReg,uchar value)
-void setRGB_led(uchar red, uchar green, uchar blue)
-void keypressInterrupt()
-void process_state()
-void updateAnimations()
-void updateSendAnimation()
-void updateRGBAnimation()
-uchar set_canSleep(uchar newVal)
+uchar read_mcp_reg(uchar readReg);
+void set_mcp_reg(uchar writeReg,uchar value);
+void setRGB_led(uchar red, uchar green, uchar blue);
+void keypressInterrupt();
+void process_state();
+void updateAnimations();
+void updateSendAnimation();
+void updateRGBAnimation();
+uchar set_noSleep(uchar newVal);
+uchar up_noSleep();
+uchar down_noSleep();
 uchar send_data()
 
 ledStateSpace stateSpace;
@@ -92,7 +94,7 @@ uchar oldSetState=0;
 uchar animState=0;
 uchar lastReadState=0;
 volatile uchar readNeeded=0;
-volatile uchar canSleep=0;
+volatile uchar noSleep=0; //till Brooklyn!  BROOKLYN!
 
 void setup()
 {
@@ -165,7 +167,7 @@ Serial.println(readState);
 	//readNeeded=digitalRead(MCP_INT_PIN);
 	//digitalWrite(ARD_SEND_LED,readNeeded);
 	process_state();
-	if(canSleep)
+	if(!noSleep)
 	{
 		attachInterrupt(digitalPinToInterrupt(ARD_MCP_INT),keypressInterrupt,LOW);
 	}
@@ -285,13 +287,27 @@ void process_state()
 				{
 					//do the setup here
 				}
+				break;
 			}
 			else if(!(setState & 0xDF))
 			{
 				//no other buttons were active but the previous presses didn't 
 				//come fast enough.  Restart the count
 				sendPressCount=1;
+				break;
 			}
+
+			//account for any running animations which will be disabled
+			if(statespace.sendState)
+			{
+				down_noSleep();
+			}
+			if(stateSpace.wetState || stateSpace.dirtyState || stateSpace.feedState ||
+				stateSpace.sleepState || stateSpace.wakeState)
+			{
+				down_noSleep();
+			}
+
 			uchar sendRetval=0;
 			setRGB_led(0,0,255);  //set to blue to indicate that we're sending
 			stateSpace.wetState=0;
@@ -310,7 +326,9 @@ void process_state()
 			set_mcp_reg(0x12,0); //gpio A
 			digitalWrite(ARD_SEND_LED,LOW);
 
-			set_canSleep(0); //not allowed to sleep while sending data
+			//not allowed to sleep while sending data and running the send 
+			//successful/failed animations
+			up_noSleep(); 
 
 			for(int i=0;i<MAX_RETRIES && !sendRetVal;++i)
 			{
@@ -321,11 +339,13 @@ void process_state()
 			{
 				//if after retries sendRetVal is still false, store the data
 				//and show the failed send animation.
-
+				ledStateSpace.rgbState=10;
+				//store info here
 			}
 			else
 			{
 				//no problems sending.  show the succesful send animation.
+				ledStateSpace.rgbState=16;
 			}
 
 			setState=0;
@@ -336,6 +356,11 @@ void process_state()
 			//any other buttons are active.
 			//this means we can reset the time of last interaction and clear
 			//any warning animation states that may have been running.
+			if(stateSpace.wetState || stateSpace.dirtyState || stateSpace.feedState ||
+				stateSpace.sleepState || stateSpace.wakeState)
+			{
+				down_noSleep(); //the time out warning animation would have raised the count
+			}
 			stateSpace.wetState=0;
 			stateSpace.wetVal=setState & ~S_PIN_MASK ? 255:0;
 			stateSpace.dirtyState=0;
@@ -346,15 +371,29 @@ void process_state()
 			stateSpace.sleepVal=setState & ~S_PIN_MASK<<3 ? 255:0;
 			stateSpace.wakeState=0;
 			stateSpace.wakeVal=setState & ~S_PIN_MASK<<4 ? 255:0;
+			if(!stateSpace.sendState)
+			{
+				//if the send button isn't already animated turn on the animation
+				//and make unelligble for sleep
+				up_noSleep();
+			}
 			stateSpace.sendState=stateSpace.sendState ? stateSpace.sendState : 1;
 			set_mcp_reg(0x12, setState & 0x1F); //gpio a
-			set_canSleep(0);  //running the send pending animation
 		}
 		else if(!state)
 		{
 			//this implies that the last active button was pressed.  Shutdown any 
-			//buttons and stop any running animations.
-			setRGB_led(0,0,0);
+			//buttons and stop any running button animations.
+			if(stateSpace.sendState)
+			{
+				down_noSleep();
+			}
+			if(stateSpace.wetState || stateSpace.dirtyState || stateSpace.feedState ||
+				stateSpace.sleepState || stateSpace.wakeState)
+			{
+				down_noSleep();
+			}
+			//allow any rgb animations to continue.
 			stateSpace.wetState=0;
 			stateSpace.wetVal=0;
 			stateSpace.dirtyState=0;
@@ -370,7 +409,6 @@ void process_state()
 
 			digitalWrite(ARD_SEND_LED,LOW);
 			set_mcp_reg(0x12,LOW);//gpio a
-			set_canSleep(1); //no running animations or data being sent
 		}
 		oldSetState=setState;
 		lastInteractTime=millis();
@@ -383,6 +421,13 @@ void process_state()
 		{
 			//start up the animations for active buttons that aren't already set
 			//to animate.
+			if(!stateSpace.wetState && !stateSpace.dirtyState && !stateSpace.feedState &&
+				!stateSpace.sleepState && !stateSpace.wetState)
+			{
+				//this is the first time through, none of the buttons have been animated
+				//yet, so the sleep lockout needs to be set
+				up_noSleep();
+			}
 			if(setState & ~S_PIN_MASK && !stateSpace.wetState)
 				stateSpace.wetState=1;
 			if(setState & ~S_PIN_MASK<<1 && !stateSpace.dirtyState)
@@ -393,11 +438,20 @@ void process_state()
 				stateSpace.sleepState=1;
 			if(setState & ~S_PIN_MASK<<4 && !stateSpace.wakeState)
 				stateSpace.wakeState=1;
-			set_canSleep(0); //running the time out warning animation.
 		}
 		else if(currTime >= lastInteractTime + RESET_TIMEOUT)
 		{
 			//clear out the state, reset the lights and update reset timer.
+			if(stateSpace.sendState)
+			{
+				down_noSleep();
+			}
+			if(stateSpace.wetSate || stateSpace.dirtyState || stateSpace.feedState ||
+				stateSpace.sleepState || stateSpace.wakeState)
+			{
+				down_noSleep();
+			}
+
 			lastInteractTime=millis();
 			stateSpace.wetState=0;
 			stateSpace.wetVal=0;
@@ -415,7 +469,6 @@ void process_state()
 			set_mcp_reg(0x12,0); //gpioa
 			digitalWrite(ARD_SEND_LED,LOW);
 			setState=0;
-			set_canSleep(1); //no running animations and no data being sent
 		}
 	}
 	updateAnimations();
@@ -426,18 +479,15 @@ void updateAnimations()
 	if(stateSpace.sendState)
 	{
 		updateSendAnimation();
-		set_canSleep(0);
 	}
 	if(stateSpace.wetState || stateSpace.dirtyState || stateSpace.feedState ||
 		stateSpace.sleepState || stateSpace.wakeState)
 	{
 		updateDataAnimation();
-		set_canSleep(0);
 	}
 	if(stateSpace.rgbState)
 	{
 		updateRGBAnimation();
-		set_canSleep(0);
 	}
 }
 
@@ -576,13 +626,13 @@ unsigned long animStartTime=millis();
 	}//end animation timeout if
 }//end updateRGBAnimation()
 
-uchar set_canSleep(uchar newVal)
+uchar set_noSleep(uchar newVal)
 {
 	uchar sregBack=SREG;
 	noInterrupts();
-	canSleep=newVal;
+	noSleep=newVal;
 	SREG=sregBack;
-	return canSleep;
+	return noSleep;
 }
 
 uchar send_data()

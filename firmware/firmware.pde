@@ -533,8 +533,14 @@ Serial.println("would update data animation!");
 
 void updateRGBAnimation()
 {
-	//temporary function body to replace testing code in loop().
-unsigned long animStartTime=millis();
+	unsigned long animStartTime=millis();
+
+	//State 1 starts a color cycle animation on the led and runs through state
+	//	9 before repeating
+	//State 10 is the send data failed animation.  Alternates between full blue
+	//	and full red three times before returning to state 0.
+	//State 16 if the send data succeeded animation.  Alternates between full 
+	//	blue and full green three times before returning to state 0.
 	if(millis() >= stateSpace.rgbUpTime)
 	{
 		switch(stateSpace.rgbState)
@@ -616,10 +622,51 @@ unsigned long animStartTime=millis();
 			{
 				stateSpace.rgbState=1;
 			}
+		break;
+		case 10:
+		case 12:
+		case 14:
+		case 16:
+		case 18:
+		case 20:
+			//send, three full blue passes
+			setRGB_led(0,0,255);
+			stateSpace.rgbUpTime=millis()+333;
+			++statespace.rgbState;
 			break;
+		case 11:
+		case 13:
+			//failed send, first and second full red
+			setRGB_led(255,0,0);
+			stateSpace.rgbUpTime=millis()+333;
+			++stateSpace.rgbState;
+			break;
+		case 15:
+			//failed send, third (final) full red
+			setRGB_led(255,0,0);
+			stateSpace.rgbUpTime=millis()+333;
+			stateSpace.rgbState=255;
+			break;
+		case 17:
+		case 19:
+			//successful send, first and second full green
+			setRGB_led(0,255,0);
+			stateSpace.rgbUpTime=millis()+333;
+			++stateSpace.rgbState;
+			break;
+		case 20:
+			//successful send, third (final) full green
+			setRGB_led(0,255,0);
+			stateSpace.rgbUpTime=millis()+333;
+			stateSpace.rgbState=255;
+			break;
+		case 255:
+			//end animation state
 		default:
 			//unknown animation state, end the animation.
 			stateSpace.rgbState=0;
+			setRGB_led(0,0,0);
+			down_noSleep();//no longer animating, don't prevent sleep on our account.
 			break;
 		}//end state switch
 	}//end animation timeout if
@@ -630,6 +677,25 @@ unsigned char set_noSleep(unsigned char newVal)
 	unsigned char sregBack=SREG;
 	noInterrupts();
 	noSleep=newVal;
+	SREG=sregBack;
+	return noSleep;
+}
+
+unsigned char up_noSleep()
+{
+	unsigned char sregBack=SREG;
+	noInterrupts();
+	++noSleep;
+	SREG=sregBack;
+	return noSleep;
+}
+
+unsigned char down_noSleep()
+{
+	unsigned char sregBack=SREG;
+	noInterrupts();
+	--noSleep;
+	noSleep=noSleep<0?0:noSleep;
 	SREG=sregBack;
 	return noSleep;
 }

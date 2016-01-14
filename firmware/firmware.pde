@@ -31,7 +31,6 @@
 #define SETUP_TIMEOUT 400L
 #define MAX_RETRIES 3
 
-typedef unsigned char uchar;
 
 typedef struct _ledStateSpace
 {
@@ -55,46 +54,46 @@ typedef struct _ledStateSpace
 	// unsigned int greenState;
 	// unsigned int blueState;
 	unsigned int rgbState;
-	uchar wetVal;
-	uchar dirtyVal;
-	uchar feedVal;
-	uchar sleepVal;
-	uchar wakeVal;
-	uchar sendVal;
-	uchar redVal;
-	uchar greenVal;
-	uchar blueVal;
+	unsigned char wetVal;
+	unsigned char dirtyVal;
+	unsigned char feedVal;
+	unsigned char sleepVal;
+	unsigned char wakeVal;
+	unsigned char sendVal;
+	unsigned char redVal;
+	unsigned char greenVal;
+	unsigned char blueVal;
 } ledStateSpace;
 
 
 void init_mcp();
-void set_mcp_pin(uchar pin, int state);
+void set_mcp_pin(unsigned char pin, int state);
 void set_mcp_all(int state);
-uchar read_mcp_reg(uchar readReg);
-void set_mcp_reg(uchar writeReg,uchar value);
-void setRGB_led(uchar red, uchar green, uchar blue);
+unsigned char read_mcp_reg(unsigned char readReg);
+void set_mcp_reg(unsigned char writeReg,unsigned char value);
+void setRGB_led(unsigned char red, unsigned char green, unsigned char blue);
 void keypressInterrupt();
 void process_state();
 void updateAnimations();
 void updateSendAnimation();
 void updateRGBAnimation();
-uchar set_noSleep(uchar newVal);
-uchar up_noSleep();
-uchar down_noSleep();
-uchar send_data()
+unsigned char set_noSleep(unsigned char newVal);
+unsigned char up_noSleep();
+unsigned char down_noSleep();
+unsigned char send_data();
 
 ledStateSpace stateSpace;
 //int state=HIGH;
-//uchar testPin=0;
+//unsigned char testPin=0;
 unsigned long lastInteractTime=0;
 unsigned long lastReadTime=0;
 int sendPressCount=0;
-uchar setState=0;
-uchar oldSetState=0;
-uchar animState=0;
-uchar lastReadState=0;
-volatile uchar readNeeded=0;
-volatile uchar noSleep=0; //till Brooklyn!  BROOKLYN!
+unsigned char setState=0;
+unsigned char oldSetState=0;
+unsigned char animState=0;
+unsigned char lastReadState=0;
+volatile unsigned char readNeeded=0;
+volatile unsigned char noSleep=0; //till Brooklyn!  BROOKLYN!
 
 void setup()
 {
@@ -149,7 +148,7 @@ void loop()
 	//Realized that this debounce wouldn't work if used only when an interrupt 
 	//occurs.  Will instead use the interrupt to wake the processor back up when
 	//a button is pressed.
-		uchar readState=read_mcp_reg(0x13); //read gpio b
+		unsigned char readState=read_mcp_reg(0x13); //read gpio b
 		if(readState!=lastReadState)
 		{
 			if(millis()-lastReadTime >= DEBOUNCE_WINDOW)
@@ -202,12 +201,12 @@ void init_mcp()
 
 }
 
-void set_mcp_pin(uchar pin, int state)
+void set_mcp_pin(unsigned char pin, int state)
 {
-	uchar lSetState=setState;
+	unsigned char lSetState=setState;
 	
 	//set the state and write it out
-	lSetState=(S_PIN_MASK << pin | S_PIN_MASK >> sizeof(uchar)*8-pin) & lSetState|state<<pin;
+	lSetState=(S_PIN_MASK << pin | S_PIN_MASK >> sizeof(unsigned char)*8-pin) & lSetState|state<<pin;
 	Wire.beginTransmission(MCP_ADDR);
 	Wire.write(0x12);  //0x12 - GPIOA
 	Wire.write(lSetState);
@@ -230,9 +229,9 @@ void set_mcp_all(int state)
 	Wire.endTransmission();
 }
 
-uchar read_mcp_reg(uchar readReg)
+unsigned char read_mcp_reg(unsigned char readReg)
 {
-	uchar retVal=0;
+	unsigned char retVal=0;
 	Wire.beginTransmission(MCP_ADDR);
 	Wire.write(readReg);
 	Wire.endTransmission();
@@ -241,7 +240,7 @@ uchar read_mcp_reg(uchar readReg)
 	return retVal;
 }
 
-void set_mcp_reg(uchar writeReg,uchar value)
+void set_mcp_reg(unsigned char writeReg,unsigned char value)
 {
 	Wire.beginTransmission(MCP_ADDR);
 	Wire.write(writeReg);
@@ -249,7 +248,7 @@ void set_mcp_reg(uchar writeReg,uchar value)
 	Wire.endTransmission();
 }
 
-void setRGB_led(uchar red, uchar green, uchar blue)
+void setRGB_led(unsigned char red, unsigned char green, unsigned char blue)
 {
 	analogWrite(ARD_STAT_RED,red);
 	stateSpace.redVal=red;
@@ -298,7 +297,7 @@ void process_state()
 			}
 
 			//account for any running animations which will be disabled
-			if(statespace.sendState)
+			if(stateSpace.sendState)
 			{
 				down_noSleep();
 			}
@@ -308,7 +307,7 @@ void process_state()
 				down_noSleep();
 			}
 
-			uchar sendRetval=0;
+			unsigned char sendRetval=0;
 			setRGB_led(0,0,255);  //set to blue to indicate that we're sending
 			stateSpace.wetState=0;
 			stateSpace.wetVal=0;
@@ -626,27 +625,27 @@ unsigned long animStartTime=millis();
 	}//end animation timeout if
 }//end updateRGBAnimation()
 
-uchar set_noSleep(uchar newVal)
+unsigned char set_noSleep(unsigned char newVal)
 {
-	uchar sregBack=SREG;
+	unsigned char sregBack=SREG;
 	noInterrupts();
 	noSleep=newVal;
 	SREG=sregBack;
 	return noSleep;
 }
 
-uchar send_data()
+unsigned char send_data()
 {
 	//will eventually send the data.  For the moment this is being used to test
 	//the rtc module.
-	uchar seconds;
-	uchar minutes;
-	uchar hours;
-	uchar dayOfWeek;
-	uchar dayOfMonth;
-	uchar month;
-	uchar year;
-	uchar config;
+	unsigned char seconds;
+	unsigned char minutes;
+	unsigned char hours;
+	unsigned char dayOfWeek;
+	unsigned char dayOfMonth;
+	unsigned char month;
+	unsigned char year;
+	unsigned char config;
 
 	Wire.beginTransmission(RTC_ADDR);
 	Wire.write(0x00);

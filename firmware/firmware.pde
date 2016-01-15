@@ -286,70 +286,70 @@ void process_state()
 				{
 					//do the setup here
 				}
-				break;
-			}
+			}//end send only and not timed out if
 			else if(!(setState & 0xDF))
 			{
 				//no other buttons were active but the previous presses didn't 
 				//come fast enough.  Restart the count
 				sendPressCount=1;
-				break;
-			}
-
-			//account for any running animations which will be disabled
-			if(stateSpace.sendState)
-			{
-				down_noSleep();
-			}
-			if(stateSpace.wetState || stateSpace.dirtyState || stateSpace.feedState ||
-				stateSpace.sleepState || stateSpace.wakeState)
-			{
-				down_noSleep();
-			}
-
-			unsigned char sendRetval=0;
-			setRGB_led(0,0,255);  //set to blue to indicate that we're sending
-			stateSpace.wetState=0;
-			stateSpace.wetVal=0;
-			stateSpace.dirtyState=0;
-			stateSpace.dirtyVal=0;
-			stateSpace.feedState=0;
-			stateSpace.feedVal=0;
-			stateSpace.sleepState=0;
-			stateSpace.sleepVal=0;
-			stateSpace.wakeState=0;
-			stateSpace.wakeVal=0;
-			stateSpace.sendState=0;
-			stateSpace.sendVal=0;
-
-			set_mcp_reg(0x12,0); //gpio A
-			digitalWrite(ARD_SEND_LED,LOW);
-
-			//not allowed to sleep while sending data and running the send 
-			//successful/failed animations
-			up_noSleep(); 
-
-			for(int i=0;i<MAX_RETRIES && !sendRetVal;++i)
-			{
-				sendRetVal=send_data();
-			}
-
-			if(!sendRetVal)
-			{
-				//if after retries sendRetVal is still false, store the data
-				//and show the failed send animation.
-				ledStateSpace.rgbState=10;
-				//store info here
-			}
+			}//end send only and timed out if
 			else
 			{
-				//no problems sending.  show the succesful send animation.
-				ledStateSpace.rgbState=16;
-			}
+				//account for any running animations which will be disabled
+				if(stateSpace.sendState)
+				{
+					down_noSleep();
+				}
+				if(stateSpace.wetState || stateSpace.dirtyState || stateSpace.feedState ||
+					stateSpace.sleepState || stateSpace.wakeState)
+				{
+					down_noSleep();
+				}
 
-			setState=0;
-			sendPressCount=0;
-		}
+				unsigned char sendRetval=0;
+				setRGB_led(0,0,255);  //set to blue to indicate that we're sending
+				stateSpace.wetState=0;
+				stateSpace.wetVal=0;
+				stateSpace.dirtyState=0;
+				stateSpace.dirtyVal=0;
+				stateSpace.feedState=0;
+				stateSpace.feedVal=0;
+				stateSpace.sleepState=0;
+				stateSpace.sleepVal=0;
+				stateSpace.wakeState=0;
+				stateSpace.wakeVal=0;
+				stateSpace.sendState=0;
+				stateSpace.sendVal=0;
+
+				set_mcp_reg(0x12,0); //gpio A
+				digitalWrite(ARD_SEND_LED,LOW);
+
+				//not allowed to sleep while sending data and running the send 
+				//successful/failed animations
+				up_noSleep(); 
+
+				for(int i=0;i<MAX_RETRIES && !sendRetVal;++i)
+				{
+					sendRetVal=send_data();
+				}
+
+				if(!sendRetVal)
+				{
+					//if after retries sendRetVal is still false, store the data
+					//and show the failed send animation.
+					ledStateSpace.rgbState=10;
+					//store info here
+				}
+				else
+				{
+					//no problems sending.  show the succesful send animation.
+					ledStateSpace.rgbState=16;
+				}
+
+				setState=0;
+				sendPressCount=0;
+			}//end send and others else
+		}//end send press if
 		else if(setState & 0x1F)
 		{
 			//any other buttons are active.
@@ -378,7 +378,7 @@ void process_state()
 			}
 			stateSpace.sendState=stateSpace.sendState ? stateSpace.sendState : 1;
 			set_mcp_reg(0x12, setState & 0x1F); //gpio a
-		}
+		}//end other button press else if
 		else if(!state)
 		{
 			//this implies that the last active button was pressed.  Shutdown any 
@@ -408,10 +408,10 @@ void process_state()
 
 			digitalWrite(ARD_SEND_LED,LOW);
 			set_mcp_reg(0x12,LOW);//gpio a
-		}
+		}//end last button toggle else if
 		oldSetState=setState;
 		lastInteractTime=millis();
-	}
+	}//end state change if
 	else if(state)
 	{
 		//no change in state, need to check if one of the timeouts has expired.
@@ -437,7 +437,7 @@ void process_state()
 				stateSpace.sleepState=1;
 			if(setState & ~S_PIN_MASK<<4 && !stateSpace.wakeState)
 				stateSpace.wakeState=1;
-		}
+		}//end time out warning if
 		else if(currTime >= lastInteractTime + RESET_TIMEOUT)
 		{
 			//clear out the state, reset the lights and update reset timer.
@@ -468,10 +468,10 @@ void process_state()
 			set_mcp_reg(0x12,0); //gpioa
 			digitalWrite(ARD_SEND_LED,LOW);
 			setState=0;
-		}
-	}
+		}//end time out else if
+	}//end idle state else if
 	updateAnimations();
-}
+}//end process_state
 
 void updateAnimations()
 {
@@ -520,6 +520,7 @@ void updateSendAnimation()
 			break;
 		default:
 			//unknown animation state, stop the animation.
+			down_noSleep();
 			stateSpace.sendState=0;
 			break;
 		}

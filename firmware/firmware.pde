@@ -153,10 +153,6 @@ void loop()
 		{
 			if(millis()-lastReadTime >= DEBOUNCE_WINDOW)
 			{
-Serial.print("setState ");
-Serial.println(setState);
-Serial.print("readState ");
-Serial.println(readState);
 				lastReadTime=millis();
 				lastReadState=readState;
 				setState= setState ^ readState; //first press to enable second press to clear
@@ -168,7 +164,7 @@ Serial.println(readState);
 	process_state();
 	if(!noSleep)
 	{
-		attachInterrupt(digitalPinToInterrupt(ARD_MCP_INT),keypressInterrupt,LOW);
+		// attachInterrupt(digitalPinToInterrupt(ARD_MCP_INT),keypressInterrupt,LOW);
 	}
 }
 
@@ -261,14 +257,15 @@ void setRGB_led(unsigned char red, unsigned char green, unsigned char blue)
 void keypressInterrupt()
 {
 	//change this to handle waking up.
-	readNeeded=1;
-	digitalWrite(ARD_SEND_LED,readNeeded);
+	// readNeeded=1;
+	// digitalWrite(ARD_SEND_LED,readNeeded);
 }
 
 void process_state()
 {
 	if(setState!=oldSetState)
 	{
+Serial.println("inside differing states");
 		//if setState changed, then that implies that a button was pushed, 
 		//act accordingly.
 
@@ -306,7 +303,7 @@ void process_state()
 					down_noSleep();
 				}
 
-				unsigned char sendRetval=0;
+				unsigned char sendRetVal=0;
 				setRGB_led(0,0,255);  //set to blue to indicate that we're sending
 				stateSpace.wetState=0;
 				stateSpace.wetVal=0;
@@ -337,18 +334,18 @@ void process_state()
 				{
 					//if after retries sendRetVal is still false, store the data
 					//and show the failed send animation.
-					ledStateSpace.rgbState=10;
+					stateSpace.rgbState=10;
 					//store info here
 				}
 				else
 				{
 					//no problems sending.  show the succesful send animation.
-					ledStateSpace.rgbState=16;
+					stateSpace.rgbState=16;
 				}
 
-				setState=0;
 				sendPressCount=0;
 			}//end send and others else
+			setState=0;
 		}//end send press if
 		else if(setState & 0x1F)
 		{
@@ -379,7 +376,7 @@ void process_state()
 			stateSpace.sendState=stateSpace.sendState ? stateSpace.sendState : 1;
 			set_mcp_reg(0x12, setState & 0x1F); //gpio a
 		}//end other button press else if
-		else if(!state)
+		else if(!setState)
 		{
 			//this implies that the last active button was pressed.  Shutdown any 
 			//buttons and stop any running button animations.
@@ -412,7 +409,7 @@ void process_state()
 		oldSetState=setState;
 		lastInteractTime=millis();
 	}//end state change if
-	else if(state)
+	else if(setState)
 	{
 		//no change in state, need to check if one of the timeouts has expired.
 		unsigned long currTime=millis();
@@ -445,7 +442,7 @@ void process_state()
 			{
 				down_noSleep();
 			}
-			if(stateSpace.wetSate || stateSpace.dirtyState || stateSpace.feedState ||
+			if(stateSpace.wetState || stateSpace.dirtyState || stateSpace.feedState ||
 				stateSpace.sleepState || stateSpace.wakeState)
 			{
 				down_noSleep();
@@ -529,8 +526,95 @@ void updateSendAnimation()
 
 void updateDataAnimation()
 {
-Serial.println("would update data animation!");
-}
+	unsigned long currTime=millis();
+	if(currTime>=stateSpace.wetUpTime || currTime>=stateSpace.dirtyUpTime ||
+		currTime >=stateSpace.feedUpTime || currTime>=stateSpace.sleepUpTime ||
+		currTime>=stateSpace.wakeUpTime)
+	{
+		unsigned char sendVal=0;
+		//this assumes that all data lights that are animated have the same value
+		if(stateSpace.wetState==1 || stateSpace.dirtyState==1 || stateSpace.feedState==1 ||
+			stateSpace.wakeState==1 || stateSpace.sleepState==1)
+		{
+			if(stateSpace.wetState)
+			{
+				stateSpace.wetState=2;
+				stateSpace.wetVal=255;
+				sendVal|=1;
+			}
+			if(stateSpace.dirtyState)
+			{
+				stateSpace.dirtyState=2;
+				stateSpace.dirtyVal=255;
+				sendVal|=2;
+			}
+			if(stateSpace.feedState)
+			{
+				stateSpace.feedState=2;
+				stateSpace.feedVal=255;
+				sendVal|=4;
+			}
+			if(stateSpace.sleepState)
+			{
+				stateSpace.sleepState=2;
+				stateSpace.sleepVal=255;
+				sendVal|=8;
+			}
+			if(stateSpace.wakeState)
+			{
+				stateSpace.wakeState=2;
+				stateSpace.wakeVal=255;
+				sendVal|=16;
+			}
+			stateSpace.wetUpTime=currTime+400;
+			stateSpace.dirtyUpTime=currTime+400;
+			stateSpace.feedUpTime=currTime+400;
+			stateSpace.sleepUpTime=currTime+400;
+			stateSpace.wakeUpTime=currTime+400;
+			set_mcp_reg(0x12,sendVal);
+		}//end state 1 if
+		else if(stateSpace.wetState==2 || stateSpace.dirtyState==2 || stateSpace.feedState==2 ||
+			stateSpace.wakeState==2 || stateSpace.sleepState==2)
+		{
+			if(stateSpace.wetState)
+			{
+				stateSpace.wetState=1;
+				stateSpace.wetVal=0;
+				sendVal&=0xFE;
+			}
+			if(stateSpace.dirtyState)
+			{
+				stateSpace.dirtyState=1;
+				stateSpace.dirtyVal=0;
+				sendVal&=0xFD;
+			}
+			if(stateSpace.feedState)
+			{
+				stateSpace.feedState=1;
+				stateSpace.feedVal=0;
+				sendVal&=0xFB;
+			}
+			if(stateSpace.sleepState)
+			{
+				stateSpace.sleepState=1;
+				stateSpace.sleepVal=0;
+				sendVal&=0xF7;
+			}
+			if(stateSpace.wakeState)
+			{
+				stateSpace.wakeState=1;
+				stateSpace.wakeVal=0;
+				sendVal&=0xEF;
+			}
+			stateSpace.wetUpTime=currTime+400;
+			stateSpace.dirtyUpTime=currTime+400;
+			stateSpace.feedUpTime=currTime+400;
+			stateSpace.sleepUpTime=currTime+400;
+			stateSpace.wakeUpTime=currTime+400;
+			set_mcp_reg(0x12,sendVal);
+		}	
+	}//end data update timer if
+}//end updateDataAnimation
 
 void updateRGBAnimation()
 {
@@ -633,7 +717,7 @@ void updateRGBAnimation()
 			//send, three full blue passes
 			setRGB_led(0,0,255);
 			stateSpace.rgbUpTime=millis()+333;
-			++statespace.rgbState;
+			++stateSpace.rgbState;
 			break;
 		case 11:
 		case 13:
@@ -655,7 +739,7 @@ void updateRGBAnimation()
 			stateSpace.rgbUpTime=millis()+333;
 			++stateSpace.rgbState;
 			break;
-		case 20:
+		case 21:
 			//successful send, third (final) full green
 			setRGB_led(0,255,0);
 			stateSpace.rgbUpTime=millis()+333;
@@ -743,4 +827,6 @@ unsigned char send_data()
 	Serial.println(year);
 	Serial.print("Configuration Register: ");
 	Serial.println(config);
+
+	return 1;
 }

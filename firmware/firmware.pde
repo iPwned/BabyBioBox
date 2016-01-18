@@ -81,6 +81,8 @@ unsigned char set_noSleep(unsigned char newVal);
 unsigned char up_noSleep();
 unsigned char down_noSleep();
 unsigned char send_data();
+unsigned char bcd_to_uchar(unsigned char bcdVal);
+unsigned char uchar_to_bcd(unsigned char ucharVal);
 
 ledStateSpace stateSpace;
 //int state=HIGH;
@@ -829,4 +831,19 @@ unsigned char send_data()
 	Serial.println(config);
 
 	return 1;
+}
+
+unsigned char bcd_to_uchar(unsigned char bcdVal)
+{
+	unsigned char retVal=0;
+	retVal=((bcdVal&0xF0)>>4)*10 + bcdVal&0x0F;
+	return retVal;
+}
+
+unsigned char uchar_to_bcd(unsigned char ucharVal)
+{
+	//assumes that we're only working with 2 digit values
+	unsigned char retVal=0;
+	retVal=ucharVal/10<<4 | ucharVal%10;
+	return retVal;
 }

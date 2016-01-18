@@ -813,22 +813,23 @@ unsigned char send_data()
 	year=Wire.read();
 	config=Wire.read();
 
-	Serial.print("Seconds: ");
-	Serial.println(seconds);
-	Serial.print("Minutes: ");
-	Serial.println(minutes);
-	Serial.print("Hours: ");
-	Serial.println(hours);
+	Serial.println("Read a time of");
+	Serial.print(uchar_to_bcd(hours));
+	Serial.print(":");
+	Serial.print(uchar_to_bcd(minutes));
+	Serial.print(":");
+	Serial.print(uchar_to_bcd(seconds));
+	Serial.print(" ");
+	Serial.print(uchar_to_bcd(month));
+	Serial.print("/");
+	Serial.print(uchar_to_bcd(dayOfMonth));
+	Serial.print("/");
+	Serial.println(uchar_to_bcd(year));
 	Serial.print("Day of Week: ");
-	Serial.println(dayOfWeek);
-	Serial.print("Day of Month: ");
-	Serial.println(dayOfMonth);
-	Serial.print("Month: ");
-	Serial.println(month);
-	Serial.print("Year: ");
-	Serial.println(year);
+	Serial.println(uchar_to_bcd(dayOfWeek));
 	Serial.print("Configuration Register: ");
 	Serial.println(config);
+	Serial.print("Edit config (y/n)?");
 
 	return 1;
 }

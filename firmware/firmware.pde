@@ -817,6 +817,7 @@ unsigned char send_data()
 	config=Wire.read();
 
 	Serial.println("Read a time of");
+	hours=hours & 0x40 ? (hours & 0x3F) : (hours & 0x7F);
 	Serial.print(uchar_to_bcd(hours));
 	Serial.print(":");
 	Serial.print(uchar_to_bcd(minutes));
@@ -841,6 +842,9 @@ unsigned char send_data()
 	{
 		Serial.println("Enter new HOURS value: ");
 		hours=uchar_to_bcd(read_uchar_from_serial());
+		//want to use 24 hour time, so set the bits right for
+		//that.
+		hours=hours & 0xBF;
 
 		Serial.println("Enter new MINUTES value: ");
 		minutes=uchar_to_bcd(read_uchar_from_serial());
@@ -860,7 +864,17 @@ unsigned char send_data()
 		Serial.println("Enter new DAY OF WEEK value: ");
 		dayOfWeek=uchar_to_bcd(read_uchar_from_serial());
 		
-		//do the i2c send
+		Wire.beginTransmission(RTC_ADDR);
+		Wire.write(0x00);
+		Wire.write(seconds);
+		Wire.write(minutes);
+		Wire.write(hours);
+		Wire.write(dayOfWeek);
+		Wire.write(dayOfMonth);
+		Wire.write(month);
+		Wire.write(year);
+		Wire.write(0x00);//don't need the square wave output
+		Wire.endTransmission();
 	}
 
 	return 1;

@@ -83,6 +83,7 @@ unsigned char down_noSleep();
 unsigned char send_data();
 unsigned char bcd_to_uchar(unsigned char bcdVal);
 unsigned char uchar_to_bcd(unsigned char ucharVal);
+unsigned char read_uchar_from_serial();
 
 ledStateSpace stateSpace;
 //int state=HIGH;
@@ -800,6 +801,8 @@ unsigned char send_data()
 	unsigned char year;
 	unsigned char config;
 
+	unsigned char serialChar;
+
 	Wire.beginTransmission(RTC_ADDR);
 	Wire.write(0x00);
 	Wire.endTransmission();
@@ -830,6 +833,35 @@ unsigned char send_data()
 	Serial.print("Configuration Register: ");
 	Serial.println(config);
 	Serial.print("Edit config (y/n)?");
+	if(Serial.available>0)
+	{
+		serialChar=Serial.read();
+	}
+	if(serialChar=='y'||serialChar=='Y')
+	{
+		Serial.println("Enter new HOURS value: ");
+		hours=uchar_to_bcd(read_uchar_from_serial());
+
+		Serial.println("Enter new MINUTES value: ");
+		minutes=uchar_to_bcd(read_uchar_from_serial());
+
+		Serial.println("Enter new SECONDS value: ");
+		seconds=uchar_to_bcd(read_uchar_from_serial());
+
+		Serial.println("Enter new MONTH value: ");
+		month=uchar_to_bcd(read_uchar_from_serial());
+
+		Serial.println("Enter new DAY OF MONTH value: ");
+		dayOfMonth=uchar_to_bcd(read_uchar_from_serial());
+
+		Serial.println("Enter new YEAR value: ");
+		year=uchar_to_bcd(read_uchar_from_serial());
+
+		Serial.println("Enter new DAY OF WEEK value: ");
+		dayOfWeek=uchar_to_bcd(read_uchar_from_serial());
+		
+		//do the i2c send
+	}
 
 	return 1;
 }
@@ -846,5 +878,16 @@ unsigned char uchar_to_bcd(unsigned char ucharVal)
 	//assumes that we're only working with 2 digit values
 	unsigned char retVal=0;
 	retVal=ucharVal/10<<4 | ucharVal%10;
+	return retVal;
+}
+
+unsigned char read_uchar_from_serial()
+{
+	unsigned char serialChar;
+	unsigned char retVal;
+	serialChar=Serial.read();
+	retVal=(serialChar-'0')*10;
+	serialChar=Serial.read();
+	retVal+=serialChar-'0';
 	return retVal;
 }

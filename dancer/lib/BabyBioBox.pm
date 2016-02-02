@@ -194,7 +194,7 @@ any ['get','post']=>'/admin/users' => sub{
 	};
 };
 
-any ['get','post']=>'data/log'=>sub {
+any ['get','post']=>'/data/log'=>sub {
 	if(request->method() eq 'POST')
 	{
 		#we're going to simply trust the inputs we get.  Definitely not safe for general consumption.

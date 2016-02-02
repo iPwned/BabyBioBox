@@ -1,0 +1,10 @@
+<h2>Log Data</h2>
+
+<form action="[% data_log_url %]" method="post" id="dataForm">
+	<input type="hidden" name="source" value="web_entry" />
+	<select name="event1">
+		[% FOREACH event IN events.keys %]
+		<option value="[% events.$event.id %]">[% events.$event.name %]</option>
+		[% END %]
+	</select>
+</form>

@@ -81,6 +81,7 @@ unsigned char set_noSleep(unsigned char newVal);
 unsigned char up_noSleep();
 unsigned char down_noSleep();
 unsigned char send_data();
+unsigned char rtc_data_function();
 unsigned char bcd_to_uchar(unsigned char bcdVal);
 unsigned char uchar_to_bcd(unsigned char ucharVal);
 unsigned char read_uchar_from_serial();
@@ -330,7 +331,8 @@ Serial.println("inside differing states");
 
 				for(int i=0;i<MAX_RETRIES && !sendRetVal;++i)
 				{
-					sendRetVal=send_data();
+					//sendRetVal=send_data();
+					sendRetVal=rtc_data_function();
 				}
 
 				if(!sendRetVal)
@@ -790,8 +792,41 @@ unsigned char down_noSleep()
 
 unsigned char send_data()
 {
-	//will eventually send the data.  For the moment this is being used to test
-	//the rtc module.
+	unsigned char seconds;
+	unsigned char minutes;
+	unsigned char hours;
+	unsigned char dayOfWeek;
+	unsigned char dayOfMonth;
+	unsigned char month;
+	unsigned char year;
+
+	Wire.beginTransmission(RTC_ADDR);
+	Wire.write(0x00);
+	Wire.endTransmission();
+	Wire.requestFrom(RTC_ADDR,7);
+	seconds=Wire.read();
+	minutes=Wire.read();
+	hours=Wire.read();
+	dayOfWeek=Wire.read();
+	dayOfMonth=Wire.read();
+	month=Wire.read();
+	year=Wire.read();
+
+	hours=hours&0x7F;
+
+	//gather data from the state space
+	//build post string
+	//wake up radio
+	//send post string
+	//check status of send
+	//sleep radio
+	//return send status
+
+	return 1;
+}
+
+unsigned char rtc_data_function()
+{
 	unsigned char seconds;
 	unsigned char minutes;
 	unsigned char hours;

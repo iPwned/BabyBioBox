@@ -4,10 +4,12 @@
 *Firmware for the BabyBioBox project
 *******************************************************************************/
 #include <Wire.h>
+#include <EEPROM.h>
 
-#define ARD_CTS 4
-#define ARD_ON_SLEEP 6
+#define ARD_XB_CTS 4
+#define ARD_XB_ON_SLEEP 6
 #define ARD_MCP_INT 7
+#define ARD_XB_SLEEP_REQ 8
 #define ARD_STAT_BLUE 9
 #define ARD_STAT_GREEN 10
 #define ARD_STAT_RED 11
@@ -85,6 +87,7 @@ unsigned char rtc_data_function();
 unsigned char bcd_to_uchar(unsigned char bcdVal);
 unsigned char uchar_to_bcd(unsigned char ucharVal);
 unsigned char read_uchar_from_serial();
+unsigned char provision_xbee();
 
 ledStateSpace stateSpace;
 //int state=HIGH;
@@ -236,7 +239,7 @@ unsigned char read_mcp_reg(unsigned char readReg)
 	Wire.write(readReg);
 	Wire.endTransmission();
 	Wire.requestFrom(MCP_ADDR,1);
-	retVal=Wire.read();//may need a cast here.
+	retVal=Wire.read();
 	return retVal;
 }
 
@@ -869,7 +872,7 @@ unsigned char rtc_data_function()
 	Serial.print("Configuration Register: ");
 	Serial.println(config);
 	Serial.print("Edit config (y/n)?");
-	if(Serial.available>0)
+	if(Serial.available()>0)
 	{
 		serialChar=Serial.read();
 	}
@@ -939,4 +942,81 @@ unsigned char read_uchar_from_serial()
 	serialChar=Serial.read();
 	retVal+=serialChar-'0';
 	return retVal;
+}
+
+unsigned char xbee_init()
+{
+	char* destName;
+	char destIP[16]={'\0'};
+	int pos;
+	unsigned char destNameLength;
+	unsigned char retVal=0;
+
+	destNameLength=EEPROM.read(0);
+	destName=calloc(destNameLength+1,sizeof char);
+
+	for(pos=1;pos<=destNameLenth;++pos)
+	{
+		destName[pos-1]=EEPROM.read(pos);
+	}
+
+	
+	if(!xbee_enter_command_mode()){return 0;}
+	
+	Serial1.println("atni BabyBioBox");
+	xbee_check_command_response();
+	pos=0;
+	Serial1.print("atla ")
+	Serial1.println(destName);
+	while(Serial1.available())
+	{
+		destIP[pos]=Serial1.read();
+		if(destIP[pos]=='E'){return 0;}
+		++pos;
+	}
+	Serial1.print("atdl ");
+	Serial1.println(destIP);
+	if(!xbee_check_command_response()){return 0;}
+	Serial1.println("atde 50");
+	if(!xbee_check_command_response()){return 0;}
+	Serial1.println("atsm 1");
+	xbee_check_command_response();
+	Serial1.println("atso 40");
+	xbee_check_command_response();
+	Serial1.println("atcn");
+	xbee_check_command_response();
+	return 1;
+}
+
+unsigned char xbee_provision()
+{
+	if(!xbee_enter_command_mode()){return 0;}
+}
+
+unsigned char xbee_check_command_response()
+{
+	unsigned char retVal=0;
+	
+	if(Serial1.avaliable())
+	{
+		responseChar=Serial1.read();
+	}
+	if(responseStr=='O')
+	{
+		retVal=1;
+	}
+	while(Serial1.available())
+	{
+		Serial1.read();
+	}
+	return retVal;
+}
+
+unsigned char xbee_enter_command_mode()
+{
+	delay(1000);
+	Serial1.print("+++");
+	delay(1000);
+	//xbee should now be in command mode.
+	return xbee_check_command_response();
 }

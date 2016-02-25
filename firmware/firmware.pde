@@ -104,8 +104,8 @@ volatile unsigned char noSleep=0; //till Brooklyn!  BROOKLYN!
 
 void setup()
 {
-	pinMode(ARD_CTS, INPUT);
-	pinMode(ARD_ON_SLEEP,INPUT);
+	pinMode(ARD_XB_CTS, INPUT);
+	pinMode(ARD_XB_ON_SLEEP,INPUT);
 	pinMode(ARD_STAT_RED,OUTPUT);
 	pinMode(ARD_STAT_GREEN,OUTPUT);
 	pinMode(ARD_STAT_BLUE,OUTPUT);
@@ -953,27 +953,36 @@ unsigned char xbee_init()
 	unsigned char retVal=0;
 
 	destNameLength=EEPROM.read(0);
-	destName=calloc(destNameLength+1,sizeof char);
+	destName=(char*)calloc(destNameLength+1,sizeof(char));
 
-	for(pos=1;pos<=destNameLenth;++pos)
+	for(pos=1;pos<=destNameLength;++pos)
 	{
 		destName[pos-1]=EEPROM.read(pos);
 	}
 
 	
-	if(!xbee_enter_command_mode()){return 0;}
+	if(!xbee_enter_command_mode())
+	{
+		free(destName);
+		return 0;
+	}
 	
 	Serial1.println("atni BabyBioBox");
 	xbee_check_command_response();
 	pos=0;
-	Serial1.print("atla ")
+	Serial1.print("atla ");
 	Serial1.println(destName);
 	while(Serial1.available())
 	{
 		destIP[pos]=Serial1.read();
-		if(destIP[pos]=='E'){return 0;}
+		if(destIP[pos]=='E')
+		{
+			free(destName);
+			return 0;
+		}
 		++pos;
 	}
+	free(destName);
 	Serial1.print("atdl ");
 	Serial1.println(destIP);
 	if(!xbee_check_command_response()){return 0;}
@@ -996,12 +1005,13 @@ unsigned char xbee_provision()
 unsigned char xbee_check_command_response()
 {
 	unsigned char retVal=0;
+	unsigned char responseChar;
 	
-	if(Serial1.avaliable())
+	if(Serial1.available())
 	{
 		responseChar=Serial1.read();
 	}
-	if(responseStr=='O')
+	if(responseChar=='O')
 	{
 		retVal=1;
 	}

@@ -854,24 +854,48 @@ unsigned char rtc_data_function()
 	year=Wire.read();
 	config=Wire.read();
 
-	Serial.println("Read a time of");
+	Serial.println("Raw read values:");
+	Serial.println(seconds);
+	Serial.println(minutes);
+	Serial.println(hours);
+	Serial.println(dayOfWeek);
+	Serial.println(dayOfMonth);
+	Serial.println(month);
+	Serial.println(year);
+	Serial.println(config);
+	Serial.println("Translated read values");
 	hours=hours & 0x40 ? (hours & 0x3F) : (hours & 0x7F);
-	Serial.print(uchar_to_bcd(hours));
+	Serial.print(bcd_to_uchar(hours));
 	Serial.print(":");
-	Serial.print(uchar_to_bcd(minutes));
+	Serial.print(bcd_to_uchar(minutes));
 	Serial.print(":");
-	Serial.print(uchar_to_bcd(seconds));
+	Serial.print(bcd_to_uchar(seconds));
 	Serial.print(" ");
-	Serial.print(uchar_to_bcd(month));
+	Serial.print(bcd_to_uchar(month));
 	Serial.print("/");
-	Serial.print(uchar_to_bcd(dayOfMonth));
+	Serial.print(bcd_to_uchar(dayOfMonth));
 	Serial.print("/");
-	Serial.println(uchar_to_bcd(year));
+	Serial.println(bcd_to_uchar(year));
 	Serial.print("Day of Week: ");
-	Serial.println(uchar_to_bcd(dayOfWeek));
+	Serial.println(bcd_to_uchar(dayOfWeek));
 	Serial.print("Configuration Register: ");
 	Serial.println(config);
 	Serial.print("Edit config (y/n)?");
+	Serial.flush();
+
+Wire.beginTransmission(RTC_ADDR);
+Wire.write(0x00);
+Wire.write(0x39);
+Wire.write(0x42);
+Wire.write(0x22);
+Wire.write(0x05);
+Wire.write(0x25);
+Wire.write(0x02);
+Wire.write(0x15);
+Wire.write(0x00);
+Wire.endTransmission();
+
+	while(Serial.available()<=0);
 	if(Serial.available()>0)
 	{
 		serialChar=Serial.read();
@@ -879,27 +903,42 @@ unsigned char rtc_data_function()
 	if(serialChar=='y'||serialChar=='Y')
 	{
 		Serial.println("Enter new HOURS value: ");
-		hours=uchar_to_bcd(read_uchar_from_serial());
+		Serial.flush();
+		while(Serial.available()<=0);
+		// hours=uchar_to_bcd(read_uchar_from_serial());
+		hours=uchar_to_bcd(read_uchar_from_serial()*10+read_uchar_from_serial());
 		//want to use 24 hour time, so set the bits right for
 		//that.
 		hours=hours & 0xBF;
 
 		Serial.println("Enter new MINUTES value: ");
+		Serial.flush();
+		while(Serial.available()<=0);
 		minutes=uchar_to_bcd(read_uchar_from_serial());
 
 		Serial.println("Enter new SECONDS value: ");
+		Serial.flush();
+		while(Serial.available()<=0);
 		seconds=uchar_to_bcd(read_uchar_from_serial());
 
 		Serial.println("Enter new MONTH value: ");
+		Serial.flush();
+		while(Serial.available()<=0);
 		month=uchar_to_bcd(read_uchar_from_serial());
 
 		Serial.println("Enter new DAY OF MONTH value: ");
+		Serial.flush();
+		while(Serial.available()<=0);
 		dayOfMonth=uchar_to_bcd(read_uchar_from_serial());
 
 		Serial.println("Enter new YEAR value: ");
+		Serial.flush();
+		while(Serial.available()<=0);
 		year=uchar_to_bcd(read_uchar_from_serial());
 
 		Serial.println("Enter new DAY OF WEEK value: ");
+		Serial.flush();
+		while(Serial.available()<=0);
 		dayOfWeek=uchar_to_bcd(read_uchar_from_serial());
 		
 		Wire.beginTransmission(RTC_ADDR);
@@ -921,7 +960,7 @@ unsigned char rtc_data_function()
 unsigned char bcd_to_uchar(unsigned char bcdVal)
 {
 	unsigned char retVal=0;
-	retVal=((bcdVal&0xF0)>>4)*10 + bcdVal&0x0F;
+	retVal=((bcdVal&0xF0)>>4)*10+(bcdVal&0x0F);//((bcdVal&0xF0)>>4)*10 + bcdVal&0x0F;
 	return retVal;
 }
 

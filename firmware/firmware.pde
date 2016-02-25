@@ -883,18 +883,6 @@ unsigned char rtc_data_function()
 	Serial.print("Edit config (y/n)?");
 	Serial.flush();
 
-Wire.beginTransmission(RTC_ADDR);
-Wire.write(0x00);
-Wire.write(0x39);
-Wire.write(0x42);
-Wire.write(0x22);
-Wire.write(0x05);
-Wire.write(0x25);
-Wire.write(0x02);
-Wire.write(0x15);
-Wire.write(0x00);
-Wire.endTransmission();
-
 	while(Serial.available()<=0);
 	if(Serial.available()>0)
 	{
@@ -905,8 +893,7 @@ Wire.endTransmission();
 		Serial.println("Enter new HOURS value: ");
 		Serial.flush();
 		while(Serial.available()<=0);
-		// hours=uchar_to_bcd(read_uchar_from_serial());
-		hours=uchar_to_bcd(read_uchar_from_serial()*10+read_uchar_from_serial());
+		hours=uchar_to_bcd(read_uchar_from_serial());
 		//want to use 24 hour time, so set the bits right for
 		//that.
 		hours=hours & 0xBF;
@@ -960,7 +947,7 @@ Wire.endTransmission();
 unsigned char bcd_to_uchar(unsigned char bcdVal)
 {
 	unsigned char retVal=0;
-	retVal=((bcdVal&0xF0)>>4)*10+(bcdVal&0x0F);//((bcdVal&0xF0)>>4)*10 + bcdVal&0x0F;
+	retVal=((bcdVal&0xF0)>>4)*10+(bcdVal&0x0F);
 	return retVal;
 }
 
